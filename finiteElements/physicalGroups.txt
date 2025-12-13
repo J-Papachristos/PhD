@@ -1,0 +1,3 @@
+inner,0
+fixed_bot,2
+fixed_top,4
