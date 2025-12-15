@@ -8,10 +8,15 @@
  a4paper,
  total={170mm,257mm},
  left=20mm,
- top=20mm,
+ top=10mm,
  }
 
+
 \begin{document} % chktex-file 44
+
+\title{Geometrically Nonlinear Finite Element Analysis --- Stiffness Equations}
+\date{}
+\maketitle
 
 \noindent The Linear Stiffness Matrix Equation is written as:
 \begin{align}
@@ -47,12 +52,12 @@ Solving for the Free DOFs vector $\vec{u_{\text{f}}}$, gives:
 \end{align}
 Where $\vec{u_{\text{s}}}$ is the known vector of Fixed DOFs (Boundary Conditions). Therefore, the known part of the Equation is moved to the RHS and the Equation is rewritten as:
 \begin{align}
-    \left[K_{\text{ff}}\right]\cdot \vec{u_{\text{f}}} = b_{\text{f}}
+    \left[K_{\text{ff}}\right]\cdot \vec{u_{\text{f}}} = \vec{b_{\text{f}}}
     \nonumber
 \end{align}
 The Non-Linear Stiffness Equation for the $i$-th timestep is written as:
 \begin{align}
-    \left[K_{\text{T}}\right]\cdot \Delta u_{\text{f}} = R^i = F_{ext} - F_{int}^i
+    \left[K_{\text{T}}\right]\cdot \Delta\vec{u_{\text{f}}} = \vec{R}^i = \vec{f_{\text{ext}}} - \vec{f_{\text{int}}}^i
     \nonumber
 \end{align}
 $K_{\text{T}}$ is the Tangent Stiffness Matrix, and is defined as $K_{\text{T}}=K_{\text{L}}+K_{\text{NL}}$. $K_{\text{L}}$ is the Linear Stiffness Matrix $K_{\text{ff}}$, as previously defined, whereas $K_{\text{NL}}$ is the Non-Linear Stiffness Matrix. Both matrices are calculated on a per-element basis, as a 24-by-24 Local Stiffness Matrix as follows:
@@ -73,7 +78,7 @@ $K_{\text{T}}$ is the Tangent Stiffness Matrix, and is defined as $K_{\text{T}}=
     \,dV}
     \nonumber
 \end{align}
-Where $D$ is the Elasticity Matrix, $S^i$ is the 2nd Piola-Kirchhoff Stress Matrix, defined as:
+Where $\left[D\right]$ is the Elasticity Matrix, $S^i$ is the 2nd Piola-Kirchhoff Stress Matrix, defined as:
 \begin{align}
     \left[
         \begin{matrix}
@@ -90,7 +95,7 @@ Where $D$ is the Elasticity Matrix, $S^i$ is the 2nd Piola-Kirchhoff Stress Matr
         \right]
     \nonumber
 \end{align}
-$\tau_{ij}$ are the 2nd Piola Stresses.
+Where $\tau_{ij}$ are the 2nd Piola Stresses.
 The Linear Deformation Matrix $\left[B_{\text{L}}\right]$ and the Non-Linear Deformaiton Matrix $\left[B_{\text{NL}}\right]$ are calculated as:
 \begin{align}
     \left[B_{\text{L}}\right]
@@ -120,5 +125,19 @@ The Linear Deformation Matrix $\left[B_{\text{L}}\right]$ and the Non-Linear Def
         \right]
     \nonumber
 \end{align}
+
+\noindent The vector $\vec{f_{\text{ext}}}$ is equal to the vector $\vec{b_{f}}$ found in the Linear Stiffness Equation. The vector $\vec{f_{\text{int}}}$ is calculated per timestep as:
+
+\begin{align}
+     & \vec{f_{\text{int}}}_{24\times6}
+    =\int_{V}{
+    {\left[B_\text{L}^T\right]}_{24\times6}
+    \vec{S_{\text{v}}}^i_{6\times1}
+    \,dV}
+    \nonumber
+\end{align}
+Where $\vec{S_{\text{v}}}^i_{6\times1}$ is The 2nd Piola Stress Vector (Voigt Notation).
+
+\noindent After solving the Nonlinear Equation by iterating, the displacement vector $\vec{u_{\text{f}}}$ is updated as $\vec{u_{\text{f}}}^{i+1} = \Delta\vec{u_{\text{f}}}^{i} + \vec{u_{\text{f}}}^{i}$.
 
 \end{document}
