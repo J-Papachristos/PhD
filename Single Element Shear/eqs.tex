@@ -1,0 +1,124 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{multirow}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{amsthm}
+\usepackage{geometry}
+ \geometry{
+ a4paper,
+ total={170mm,257mm},
+ left=20mm,
+ top=20mm,
+ }
+
+\begin{document} % chktex-file 44
+
+\noindent The Linear Stiffness Matrix Equation is written as:
+\begin{align}
+    \left[
+        \begin{array}{c|c}
+            K_{\text{ff}} & K_{\text{fs}} \\
+            \hline
+            K_{\text{sf}} & K_{\text{ss}} \\
+        \end{array}
+        \right]
+    \cdot
+    \left[
+        \begin{array}{c}
+            u_{\text{f}} \\
+            \hline
+            u_{\text{s}} \\
+        \end{array}
+        \right]
+    = \left[
+        \begin{array}{c}
+            0 \\
+            \hline
+            0 \\
+        \end{array}
+        \right]
+    \nonumber
+\end{align}
+Solving for the Free DOFs vector $\vec{u_{\text{f}}}$, gives:
+\begin{align}
+    \left[K_{\text{ff}}\right]\cdot \vec{u_{\text{f}}}
+    + \left[K_{\text{fs}}\right]\cdot \vec{u_{\text{s}}} = 0
+    \nonumber
+\end{align}
+Where $\vec{u_{\text{s}}}$ is the known vector of Fixed DOFs (Boundary Conditions). Therefore, the known part of the Equation is moved to the RHS and the Equation is rewritten as:
+\begin{align}
+    \left[K_{\text{ff}}\right]\cdot \vec{u_{\text{f}}} = b_{\text{f}}
+    \nonumber
+\end{align}
+The Non-Linear Stiffness Equation for the $i$-th timestep is written as:
+\begin{align}
+    \left[K_{\text{T}}\right]\cdot \Delta u_{\text{f}} = R^i = F_{ext} - F_{int}^i
+    \nonumber
+\end{align}
+$K_{\text{T}}$ is the Tangent Stiffness Matrix, and is defined as $K_{\text{T}}=K_{\text{L}}+K_{\text{NL}}$. $K_{\text{L}}$ is the Linear Stiffness Matrix $K_{\text{ff}}$, as previously defined, whereas $K_{\text{NL}}$ is the Non-Linear Stiffness Matrix. Both matrices are calculated on a per-element basis, as a 24-by-24 Local Stiffness Matrix as follows:
+
+\begin{align}
+     & {\left[K_{\text{L}}\right]}_{24\times24}
+    =\int_{V}{
+        {\left[B_\text{L}^T\right]}_{24\times6}
+            {\left[D\right]}_{6\times6}
+            {\left[B_\text{L}\right]}_{6\times24}
+        \,dV}
+    \nonumber                                    \\
+     & {\left[K_{\text{NL}}\right]}_{24\times24}
+    =\int_{V}{
+    {\left[B_\text{NL}^T\right]}_{24\times9}
+        {\left[S\right]}^i_{9\times9}
+    {\left[B_\text{NL}\right]}_{9\times24}
+    \,dV}
+    \nonumber
+\end{align}
+Where $D$ is the Elasticity Matrix, $S^i$ is the 2nd Piola-Kirchhoff Stress Matrix, defined as:
+\begin{align}
+    \left[
+        \begin{matrix}
+            \tau_{xx} & \tau_{xy} & \tau_{xz} & 0         & 0         & 0         & 0         & 0         & 0         \\
+            \tau_{xy} & \tau_{yy} & \tau_{yz} & 0         & 0         & 0         & 0         & 0         & 0         \\
+            \tau_{xz} & \tau_{yz} & \tau_{zz} & 0         & 0         & 0         & 0         & 0         & 0         \\
+            0         & 0         & 0         & \tau_{xx} & \tau_{xy} & \tau_{xz} & 0         & 0         & 0         \\
+            0         & 0         & 0         & \tau_{xy} & \tau_{yy} & \tau_{yz} & 0         & 0         & 0         \\
+            0         & 0         & 0         & \tau_{xz} & \tau_{yz} & \tau_{zz} & 0         & 0         & 0         \\
+            0         & 0         & 0         & 0         & 0         & 0         & \tau_{xx} & \tau_{xy} & \tau_{xz} \\
+            0         & 0         & 0         & 0         & 0         & 0         & \tau_{xy} & \tau_{yy} & \tau_{yz} \\
+            0         & 0         & 0         & 0         & 0         & 0         & \tau_{xz} & \tau_{yz} & \tau_{zz} \\
+        \end{matrix}
+        \right]
+    \nonumber
+\end{align}
+$\tau_{ij}$ are the 2nd Piola Stresses.
+The Linear Deformation Matrix $\left[B_{\text{L}}\right]$ and the Non-Linear Deformaiton Matrix $\left[B_{\text{NL}}\right]$ are calculated as:
+\begin{align}
+    \left[B_{\text{L}}\right]
+    =\left[
+        \begin{array}{ccc|c}
+            \dfrac{\partial{N}}{\partial{x}} & 0                                & 0                                & \cdots \\
+            0                                & \dfrac{\partial{N}}{\partial{y}} & 0                                & \cdots \\
+            0                                & 0                                & \dfrac{\partial{N}}{\partial{z}} & \cdots \\
+            \dfrac{\partial{N}}{\partial{y}} & \dfrac{\partial{N}}{\partial{x}} & 0                                & \cdots \\
+            0                                & \dfrac{\partial{N}}{\partial{z}} & \dfrac{\partial{N}}{\partial{y}} & \cdots \\
+            \dfrac{\partial{N}}{\partial{z}} & 0                                & \dfrac{\partial{N}}{\partial{z}} & \cdots \\
+        \end{array}
+        \right]
+    ,\ \left[B_{\text{NL}}\right]
+    =\left[
+        \begin{array}{ccc|c}
+            \dfrac{\partial{N}}{\partial{x}} & 0                                & 0                                & \cdots \\
+            \dfrac{\partial{N}}{\partial{y}} & 0                                & 0                                & \cdots \\
+            \dfrac{\partial{N}}{\partial{z}} & 0                                & 0                                & \cdots \\
+            0                                & \dfrac{\partial{N}}{\partial{x}} & 0                                & \cdots \\
+            0                                & \dfrac{\partial{N}}{\partial{y}} & 0                                & \cdots \\
+            0                                & \dfrac{\partial{N}}{\partial{z}} & 0                                & \cdots \\
+            0                                & 0                                & \dfrac{\partial{N}}{\partial{x}} & \cdots \\
+            0                                & 0                                & \dfrac{\partial{N}}{\partial{y}} & \cdots \\
+            0                                & 0                                & \dfrac{\partial{N}}{\partial{z}} & \cdots \\
+        \end{array}
+        \right]
+    \nonumber
+\end{align}
+
+\end{document}
