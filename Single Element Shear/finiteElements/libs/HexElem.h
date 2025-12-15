@@ -516,6 +516,12 @@ class hex8 : public HexElem<linear> {
     /// @param zeta Isoparametric Coordinate ζ
     void getNonLinearDeformMatrix(double ksi, double eta, double zeta) {
         memset(this->B_NL, 0, sizeof(this->B_NL));
+        // for (int i = 0; i < nHexDOFs * nHexDOFs; i++) {
+        //     for (int j = 0; j < nHexDOFs * elemNodes; j++) {
+        //         this->B_NL[i][j] = 0;
+        //     }
+        // }
+
         double dNdx;
         double dNdy;
         double dNdz;
@@ -534,9 +540,9 @@ class hex8 : public HexElem<linear> {
             dNdz += this->dNdzeta(node, ksi, eta, zeta) * this->J_inv[2][2];
 
             for (int i = 0; i < nHexDOFs; i++) {
-                B_NL[i * nHexDOFs + DOF_ux][node * nHexDOFs + DOF_ux] = dNdx;
-                B_NL[i * nHexDOFs + DOF_uy][node * nHexDOFs + DOF_ux] = dNdy;
-                B_NL[i * nHexDOFs + DOF_uz][node * nHexDOFs + DOF_ux] = dNdz;
+                this->B_NL[i * nHexDOFs + DOF_ux][node * nHexDOFs + i] = dNdx;
+                this->B_NL[i * nHexDOFs + DOF_uy][node * nHexDOFs + i] = dNdy;
+                this->B_NL[i * nHexDOFs + DOF_uz][node * nHexDOFs + i] = dNdz;
             }
         }
     }
