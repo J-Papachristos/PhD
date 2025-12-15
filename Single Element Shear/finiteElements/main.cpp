@@ -25,6 +25,11 @@ void localStiff(hexType *elem, double **k_local);
 template <typename hexType>
 void localStiff_NL(hexType *elem, double **k_local_NL);
 
+/// @brief Calculates the Internal Force component of the
+/// residual of the non-linear stiffness equation
+/// @tparam hexType Type of Hexahedral Element (hex8/hex20)
+/// @param elem Element of type hexType
+/// @param Fint Internal Force Vector
 template <typename hexType>
 void intForce(hexType *elem, double *Fint);
 
