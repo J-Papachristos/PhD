@@ -80,10 +80,12 @@ int main(int argc, char const *argv[]) {
             if (!strcmp(argv[i], "--remesh")) {
                 /// Mesh Generation
                 char cmd[256];
+                printf("Remeshing...\t");
                 strcpy(cmd, "C:\\Miniforge3\\python.exe .\\mesher.py ");
                 strcat(cmd, argv[typeArgPos]);
                 strcat(cmd, " > nul"); // Send .py output to void
                 system(cmd);
+                printf("Done!\n");
             }
             if (!strcmp(argv[i], "--transient")) {
                 t_stop = atof(argv[i + 1]);
@@ -257,7 +259,7 @@ int main(int argc, char const *argv[]) {
         double res = INFINITY;
         int iter = 0;
         printf("t = %lf\n", t);
-        while (fabs(res) >= 1e-6) {
+        while (fabs(res) >= 1e-5 && iter <= 100) {
             // k_ff : [K] Matrix of Free DOFs
             // Dimensions : (# Free DOFs) x (# Free DOFs)
             cholmod_sparse *k_ff;
@@ -313,10 +315,11 @@ int main(int argc, char const *argv[]) {
                 // if (t > 0) {
                 //     for (int i = 0; i < 24; i++) {
                 //         for (int j = 0; j < 24; j++) {
-                //             printf("%lf ", k_local_NL[i][j]);
+                //             printf("%4.3e,", k_local_NL[i][j]);
                 //         }
                 //         printf("\n");
                 //     }
+                //     printf("\n");
                 // }
 
                 // Calculate Local Internal Forces
@@ -329,7 +332,7 @@ int main(int argc, char const *argv[]) {
                         int col = globalDOFs[elemArray[elem].nodeIndex[j]];
 
                         /// Global [K] Matrix is split into 4 segments
-                        /// Pointer k_ptr picks each segment, dependent on position
+                        /// Pointer T_ptr picks each segment, dependent on position
                         cholmod_triplet *T_ptr = nullptr;
 
                         // Move Row,Col relative to segment
@@ -356,33 +359,33 @@ int main(int argc, char const *argv[]) {
                         /// Add Local Stiffness Matrix to corresponding Global Matrix group
                         addElem(T_ptr, row_tmp + DOF_ux, col_tmp + DOF_ux,
                                 k_local[(i * nHexDOFs) + DOF_ux][(j * nHexDOFs) + DOF_ux] +
-                                k_local_NL[(i * nHexDOFs) + DOF_ux][(j * nHexDOFs) + DOF_ux]);
+                                    k_local_NL[(i * nHexDOFs) + DOF_ux][(j * nHexDOFs) + DOF_ux]);
                         addElem(T_ptr, row_tmp + DOF_ux, col_tmp + DOF_uy,
                                 k_local[(i * nHexDOFs) + DOF_ux][(j * nHexDOFs) + DOF_uy] +
-                                k_local_NL[(i * nHexDOFs) + DOF_ux][(j * nHexDOFs) + DOF_uy]);
+                                    k_local_NL[(i * nHexDOFs) + DOF_ux][(j * nHexDOFs) + DOF_uy]);
                         addElem(T_ptr, row_tmp + DOF_ux, col_tmp + DOF_uz,
                                 k_local[(i * nHexDOFs) + DOF_ux][(j * nHexDOFs) + DOF_uz] +
-                                k_local_NL[(i * nHexDOFs) + DOF_ux][(j * nHexDOFs) + DOF_uz]);
+                                    k_local_NL[(i * nHexDOFs) + DOF_ux][(j * nHexDOFs) + DOF_uz]);
 
                         addElem(T_ptr, row_tmp + DOF_uy, col_tmp + DOF_ux,
                                 k_local[(i * nHexDOFs) + DOF_uy][(j * nHexDOFs) + DOF_ux] +
-                                k_local_NL[(i * nHexDOFs) + DOF_uy][(j * nHexDOFs) + DOF_ux]);
+                                    k_local_NL[(i * nHexDOFs) + DOF_uy][(j * nHexDOFs) + DOF_ux]);
                         addElem(T_ptr, row_tmp + DOF_uy, col_tmp + DOF_uy,
                                 k_local[(i * nHexDOFs) + DOF_uy][(j * nHexDOFs) + DOF_uy] +
-                                k_local_NL[(i * nHexDOFs) + DOF_uy][(j * nHexDOFs) + DOF_uy]);
+                                    k_local_NL[(i * nHexDOFs) + DOF_uy][(j * nHexDOFs) + DOF_uy]);
                         addElem(T_ptr, row_tmp + DOF_uy, col_tmp + DOF_uz,
                                 k_local[(i * nHexDOFs) + DOF_uy][(j * nHexDOFs) + DOF_uz] +
-                                k_local_NL[(i * nHexDOFs) + DOF_uy][(j * nHexDOFs) + DOF_uz]);
+                                    k_local_NL[(i * nHexDOFs) + DOF_uy][(j * nHexDOFs) + DOF_uz]);
 
                         addElem(T_ptr, row_tmp + DOF_uz, col_tmp + DOF_ux,
                                 k_local[(i * nHexDOFs) + DOF_uz][(j * nHexDOFs) + DOF_ux] +
-                                k_local_NL[(i * nHexDOFs) + DOF_uz][(j * nHexDOFs) + DOF_ux]);
+                                    k_local_NL[(i * nHexDOFs) + DOF_uz][(j * nHexDOFs) + DOF_ux]);
                         addElem(T_ptr, row_tmp + DOF_uz, col_tmp + DOF_uy,
                                 k_local[(i * nHexDOFs) + DOF_uz][(j * nHexDOFs) + DOF_uy] +
-                                k_local_NL[(i * nHexDOFs) + DOF_uz][(j * nHexDOFs) + DOF_uy]);
+                                    k_local_NL[(i * nHexDOFs) + DOF_uz][(j * nHexDOFs) + DOF_uy]);
                         addElem(T_ptr, row_tmp + DOF_uz, col_tmp + DOF_uz,
                                 k_local[(i * nHexDOFs) + DOF_uz][(j * nHexDOFs) + DOF_uz] +
-                                k_local_NL[(i * nHexDOFs) + DOF_uz][(j * nHexDOFs) + DOF_uz]);
+                                    k_local_NL[(i * nHexDOFs) + DOF_uz][(j * nHexDOFs) + DOF_uz]);
 
                         // Add Internal Forces
                         ((double *) b_free->x)[row_tmp + DOF_ux] -= Fint[(i * nHexDOFs) + DOF_ux];
@@ -411,13 +414,15 @@ int main(int argc, char const *argv[]) {
             k_ss = cholmod_triplet_to_sparse(T_ss, 1, &c);
 
             /// Construct Free DOF Equation {RHS}
-            /// {RHS} = b_free - K_fs * u_fixed
-            double p1[2] = {1.0, 0}, m1[2] = {-1.0, 0}; // Basic Scalars
-            cholmod_sdmult(k_fs, 0, m1, p1, u_fixed, b_free, &c);
+            if (iter == 0) { // p.77/542 Borst Book
+                /// {RHS} = b_free - K_fs * u_fixed
+                double p1[2] = {1.0, 0}, m1[2] = {-1.0, 0}; // Basic Scalars
+                cholmod_sdmult(k_fs, 0, m1, p1, u_fixed, b_free, &c);
+            }
 
-            // FILE *f_kff = fopen("k_ff.txt", "w");
-            // cholmod_write_sparse(f_kff, k_ff, NULL, NULL, &c);
-            // fclose(f_kff);
+            FILE *f_kff = fopen("k_ff.txt", "w");
+            cholmod_write_sparse(f_kff, k_ff, NULL, NULL, &c);
+            fclose(f_kff);
 
             // FILE *f_bf = fopen("b.txt", "w");
             // cholmod_write_dense(f_kff, b_free, NULL, &c);
@@ -436,10 +441,10 @@ int main(int argc, char const *argv[]) {
             /// Calculate Residual
             res = 0;
             for (int i = 0; i < freeDOFs; i++) {
-                res += ((double *) u_free->x)[i];
+                res += fabs(((double *) u_free->x)[i]);
             }
             res /= freeDOFs;
-            printf("\tIter = %d, R = %.8lf\n", iter++, res);
+            printf("\tIter = %3d, R = %+.8lf\n", iter++, res);
 
             /// Update Displacements
             for (int elem = 0; elem < nElems; elem++) {
@@ -448,21 +453,12 @@ int main(int argc, char const *argv[]) {
                     if (row < freeDOFs) {
                         /// Assign Displacements to Element
                         elemArray[elem].d[i * nHexDOFs + DOF_ux] += ((double *) u_free->x)[row + DOF_ux];
-                        elemArray[elem].d[i * nHexDOFs + DOF_uy] += ((double *) u_free->x)[row + DOF_ux];
-                        elemArray[elem].d[i * nHexDOFs + DOF_uz] += ((double *) u_free->x)[row + DOF_ux];
-
-                        /// Move Nodes to new positions
-                        // elemArray[elem].x[i] += ((double *) u_free->x)[row + DOF_ux];
-                        // elemArray[elem].y[i] += ((double *) u_free->x)[row + DOF_uy];
-                        // elemArray[elem].z[i] += ((double *) u_free->x)[row + DOF_uz];
+                        elemArray[elem].d[i * nHexDOFs + DOF_uy] += ((double *) u_free->x)[row + DOF_uy];
+                        elemArray[elem].d[i * nHexDOFs + DOF_uz] += ((double *) u_free->x)[row + DOF_uz];
                     } else {
                         elemArray[elem].d[i * nHexDOFs + DOF_ux] = ((double *) u_fixed->x)[row - freeDOFs + DOF_ux];
-                        elemArray[elem].d[i * nHexDOFs + DOF_uy] = ((double *) u_fixed->x)[row - freeDOFs + DOF_ux];
-                        elemArray[elem].d[i * nHexDOFs + DOF_uz] = ((double *) u_fixed->x)[row - freeDOFs + DOF_ux];
-
-                        // elemArray[elem].x[i] += ((double *) u_fixed->x)[row - freeDOFs + DOF_ux];
-                        // elemArray[elem].y[i] += ((double *) u_fixed->x)[row - freeDOFs + DOF_uy];
-                        // elemArray[elem].z[i] += ((double *) u_fixed->x)[row - freeDOFs + DOF_uz];
+                        elemArray[elem].d[i * nHexDOFs + DOF_uy] = ((double *) u_fixed->x)[row - freeDOFs + DOF_uy];
+                        elemArray[elem].d[i * nHexDOFs + DOF_uz] = ((double *) u_fixed->x)[row - freeDOFs + DOF_uz];
                     }
                 }
             }
@@ -529,8 +525,8 @@ int main(int argc, char const *argv[]) {
     free(elemArray);
     free(globalDOFs);
 
-    cholmod_print_common("common", &c);
-    cholmod_gpu_stats(&c);
+    // cholmod_print_common("common", &c);
+    // cholmod_gpu_stats(&c);
     cholmod_finish(&c);
     return 0;
 }
@@ -557,6 +553,7 @@ void localStiff(hexType *elem, double **k_local) {
     for (int iKsi = 0; iKsi < GQ_POINTS; iKsi++) {
         for (int iEta = 0; iEta < GQ_POINTS; iEta++) {
             for (int iZeta = 0; iZeta < GQ_POINTS; iZeta++) {
+                double weight = w_GQ[iKsi] * w_GQ[iEta] * w_GQ[iZeta];
                 elem->jacobian(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
                 elem->getLinearDeformMatrix(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
 
@@ -574,9 +571,7 @@ void localStiff(hexType *elem, double **k_local) {
                             BT_D_B_ij += BT_D[row] * elem->B_L[row][j];
                         }
 
-                        BT_D_B_ij *= elem->detJ * w_GQ[iKsi] * w_GQ[iEta] * w_GQ[iZeta];
-                        k_local[i][j] += 0.5 * BT_D_B_ij;
-                        k_local[j][i] += 0.5 * BT_D_B_ij;
+                        k_local[i][j] += BT_D_B_ij * elem->detJ * weight;
                     }
                 }
             }
@@ -594,30 +589,13 @@ void localStiff_NL(hexType *elem, double **k_local_NL) {
             for (int iZeta = 0; iZeta < GQ_POINTS; iZeta++) {
                 double weight = w_GQ[iKsi] * w_GQ[iEta] * w_GQ[iZeta];
                 elem->jacobian(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
-                elem->getLinearDeformMatrix(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
-                elem->getNonLinearDeformMatrix(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
-
                 elem->getDeformGradient(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
-                elem->calculatePiola2();
-
-                // for (int i = 0; i < nHexDOFs * elemNodes; i++) {
-                //     for (int l = 0; l < nHexDOFs * nHexDOFs; l++) {
-                //         double sum = 0;
-                //         for (int k = 0; k < nHexDOFs * nHexDOFs; k++) {
-                //             if (k / nHexDOFs == l / nHexDOFs) {////////////////////////////////////////////////////////!
-                //                 // Maybe doesnt access elements as it should, needs to make K_NL sym/pos def
-                //                 sum += elem->B_NL[k][i] * elem->S2[k % nHexDOFs][l % nHexDOFs];
-                //             }
-                //         }
-                //         for (int j = 0; j < nHexDOFs * elemNodes; j++) {
-                //             k_local_NL[i][j] += sum * elem->B_NL[l][j] * elem->detJ * weight;
-                //         }
-                //     }
-                // }
+                elem->getNonLinearDeformMatrix(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
+                elem->calculatePiola2(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
 
                 for (int i = 0; i < nHexDOFs * elemNodes; i++) {
                     for (int j = 0; j < nHexDOFs * elemNodes; j++) {
-                        double sum = 0;
+                        double sum = 0; // k_NL[i,j] for each GQ
                         for (int l = 0; l < nHexDOFs * nHexDOFs; l++) {
                             double BNL_S2 = 0;
                             for (int k = 0; k < nHexDOFs * nHexDOFs; k++) {
@@ -647,10 +625,9 @@ void intForce(hexType *elem, double *Fint) {
             for (int iZeta = 0; iZeta < GQ_POINTS; iZeta++) {
                 double weight = w_GQ[iKsi] * w_GQ[iEta] * w_GQ[iZeta];
                 elem->jacobian(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
-                elem->getLinearDeformMatrix(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
-
                 elem->getDeformGradient(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
-                elem->calculatePiola2();
+                elem->getLinearDeformMatrix(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
+                elem->calculatePiola2(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
 
                 for (int i = 0; i < nHexDOFs * elemNodes; i++) {
                     for (int j = 0; j < directions; j++) {

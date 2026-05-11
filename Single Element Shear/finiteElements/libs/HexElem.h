@@ -193,6 +193,8 @@ class HexElem {
     // Strains
     double epsilon[nHexDOFs][nHexDOFs]; // Nodal Strain Matrix
     double epsilon_v[directions];       // Nodal Strain Vector [ε_xx, ε_yy, ε_zz, γ_xy, γ_yz, γ_zx]
+    double eps_GL[nHexDOFs][nHexDOFs];  // Green-Lagrange Strain Tensor
+    double eps_GL_v[directions];        // Green-Lagrange Strain Tensor [ε_xx, ε_yy, ε_zz, γ_xy, γ_yz, γ_zx]
 
     // Stresses
     double sigma[nHexDOFs][nHexDOFs]; // Nodal Stress Matrix
@@ -475,7 +477,14 @@ class hex8 : public HexElem<linear> {
     /// @param eta  Isoparametric Coordinate η
     /// @param zeta Isoparametric Coordinate ζ
     void getLinearDeformMatrix(double ksi, double eta, double zeta) {
-        memset(this->B_L, 0, sizeof(this->B_L));
+        this->jacobian(ksi, eta, zeta);
+        this->getDeformGradient(ksi, eta, zeta);
+        // memset(this->B_L, 0, sizeof(this->B_L));
+        for (int i = 0; i < nHexDOFs * nHexDOFs; i++) {
+            for (int j = 0; j < nHexDOFs * elemNodes; j++) {
+                this->B_L[i][j] = 0;
+            }
+        }
         double dNdx[this->elemNodes];
         double dNdy[this->elemNodes];
         double dNdz[this->elemNodes];
@@ -494,19 +503,45 @@ class hex8 : public HexElem<linear> {
             dNdz[node] += this->dNdzeta(node, ksi, eta, zeta) * this->J_inv[2][2];
         }
 
+        // for (int node = 0; node < this->elemNodes; node++) {
+        //     this->B_L[DOF_ux][node * nHexDOFs + DOF_ux] = dNdx[node];
+        //     this->B_L[DOF_uy][node * nHexDOFs + DOF_uy] = dNdy[node];
+        //     this->B_L[DOF_uz][node * nHexDOFs + DOF_uz] = dNdz[node];
+
+        //     this->B_L[nHexDOFs + DOF_ux][node * nHexDOFs + DOF_ux] = dNdy[node];
+        //     this->B_L[nHexDOFs + DOF_ux][node * nHexDOFs + DOF_uy] = dNdx[node];
+
+        //     this->B_L[nHexDOFs + DOF_uy][node * nHexDOFs + DOF_uy] = dNdz[node];
+        //     this->B_L[nHexDOFs + DOF_uy][node * nHexDOFs + DOF_uz] = dNdy[node];
+
+        //     this->B_L[nHexDOFs + DOF_uz][node * nHexDOFs + DOF_ux] = dNdz[node];
+        //     this->B_L[nHexDOFs + DOF_uz][node * nHexDOFs + DOF_uz] = dNdx[node];
+        // }
+
         for (int node = 0; node < this->elemNodes; node++) {
-            this->B_L[DOF_ux][node * nHexDOFs + DOF_ux] = dNdx[node];
-            this->B_L[DOF_uy][node * nHexDOFs + DOF_uy] = dNdy[node];
-            this->B_L[DOF_uz][node * nHexDOFs + DOF_uz] = dNdz[node];
+            this->B_L[DOF_ux][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_ux] * dNdx[node];
+            this->B_L[DOF_uy][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_uy] * dNdy[node];
+            this->B_L[DOF_uz][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_uz] * dNdz[node];
 
-            this->B_L[nHexDOFs + DOF_ux][node * nHexDOFs + DOF_ux] = dNdy[node];
-            this->B_L[nHexDOFs + DOF_ux][node * nHexDOFs + DOF_uy] = dNdx[node];
+            this->B_L[DOF_ux][node * nHexDOFs + DOF_uy] = this->F[DOF_uy][DOF_ux] * dNdx[node];
+            this->B_L[DOF_uy][node * nHexDOFs + DOF_uy] = this->F[DOF_uy][DOF_uy] * dNdy[node];
+            this->B_L[DOF_uz][node * nHexDOFs + DOF_uy] = this->F[DOF_uy][DOF_uz] * dNdz[node];
 
-            this->B_L[nHexDOFs + DOF_uy][node * nHexDOFs + DOF_uy] = dNdz[node];
-            this->B_L[nHexDOFs + DOF_uy][node * nHexDOFs + DOF_uz] = dNdy[node];
+            this->B_L[DOF_ux][node * nHexDOFs + DOF_uz] = this->F[DOF_uz][DOF_ux] * dNdx[node];
+            this->B_L[DOF_uy][node * nHexDOFs + DOF_uz] = this->F[DOF_uz][DOF_uy] * dNdy[node];
+            this->B_L[DOF_uz][node * nHexDOFs + DOF_uz] = this->F[DOF_uz][DOF_uz] * dNdz[node];
 
-            this->B_L[nHexDOFs + DOF_uz][node * nHexDOFs + DOF_ux] = dNdz[node];
-            this->B_L[nHexDOFs + DOF_uz][node * nHexDOFs + DOF_uz] = dNdx[node];
+            this->B_L[DOF_ux + nHexDOFs][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_ux] * dNdy[node] + this->F[DOF_ux][DOF_uy] * dNdx[node];
+            this->B_L[DOF_uy + nHexDOFs][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_uy] * dNdz[node] + this->F[DOF_ux][DOF_uz] * dNdy[node];
+            this->B_L[DOF_uz + nHexDOFs][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_uz] * dNdx[node] + this->F[DOF_ux][DOF_ux] * dNdz[node];
+
+            this->B_L[DOF_ux + nHexDOFs][node * nHexDOFs + DOF_uy] = this->F[DOF_uy][DOF_ux] * dNdy[node] + this->F[DOF_uy][DOF_uy] * dNdx[node];
+            this->B_L[DOF_uy + nHexDOFs][node * nHexDOFs + DOF_uy] = this->F[DOF_uy][DOF_uy] * dNdz[node] + this->F[DOF_uy][DOF_uz] * dNdy[node];
+            this->B_L[DOF_uz + nHexDOFs][node * nHexDOFs + DOF_uy] = this->F[DOF_uy][DOF_uz] * dNdx[node] + this->F[DOF_uy][DOF_ux] * dNdz[node];
+
+            this->B_L[DOF_ux + nHexDOFs][node * nHexDOFs + DOF_uz] = this->F[DOF_uz][DOF_ux] * dNdy[node] + this->F[DOF_uz][DOF_uy] * dNdx[node];
+            this->B_L[DOF_uy + nHexDOFs][node * nHexDOFs + DOF_uz] = this->F[DOF_uz][DOF_uy] * dNdz[node] + this->F[DOF_uz][DOF_uz] * dNdy[node];
+            this->B_L[DOF_uz + nHexDOFs][node * nHexDOFs + DOF_uz] = this->F[DOF_uz][DOF_uz] * dNdx[node] + this->F[DOF_uz][DOF_ux] * dNdz[node];
         }
     }
 
@@ -515,16 +550,17 @@ class hex8 : public HexElem<linear> {
     /// @param eta  Isoparametric Coordinate η
     /// @param zeta Isoparametric Coordinate ζ
     void getNonLinearDeformMatrix(double ksi, double eta, double zeta) {
-        memset(this->B_NL, 0, sizeof(this->B_NL));
-        // for (int i = 0; i < nHexDOFs * nHexDOFs; i++) {
-        //     for (int j = 0; j < nHexDOFs * elemNodes; j++) {
-        //         this->B_NL[i][j] = 0;
-        //     }
-        // }
+        this->jacobian(ksi, eta, zeta);
+        // memset(this->B_NL, 0, sizeof(this->B_NL));
+        for (int i = 0; i < nHexDOFs * nHexDOFs; i++) {
+            for (int j = 0; j < nHexDOFs * elemNodes; j++) {
+                this->B_NL[i][j] = 0;
+            }
+        }
 
-        double dNdx;
-        double dNdy;
-        double dNdz;
+        double dNdx = 0;
+        double dNdy = 0;
+        double dNdz = 0;
 
         for (int node = 0; node < this->elemNodes; node++) {
             dNdx = this->dNdksi(node, ksi, eta, zeta) * this->J_inv[0][0];
@@ -547,61 +583,100 @@ class hex8 : public HexElem<linear> {
         }
     }
 
-    void calculateStrain() {
-        for (int dir = 0; dir < directions; dir++) {
-            this->epsilon_v[dir] = 0;
-            for (int cols = 0; cols < nHexDOFs * this->elemNodes; cols++) {
-                this->epsilon_v[dir] += this->B_L[dir][cols] * this->d[cols];
+    // void calculateStrain() {
+    //     for (int dir = 0; dir < directions; dir++) {
+    //         this->epsilon_v[dir] = 0;
+    //         for (int cols = 0; cols < nHexDOFs * this->elemNodes; cols++) {
+    //             this->epsilon_v[dir] += this->B_L[dir][cols] * this->d[cols];
+    //         }
+    //     }
+    // }
+
+    void calculateGreenLagrangeStrain(double ksi, double eta, double zeta) {
+        this->getDeformGradient(ksi, eta, zeta);
+        for (int i = 0; i < nHexDOFs; i++) {
+            for (int j = 0; j < nHexDOFs; j++) {
+                this->eps_GL[i][j] = 0.5 * (this->F[j][i] * this->F[i][j] + ((i == j) ? 1. : 0.));
             }
         }
+
+        this->eps_GL_v[DOF_ux] = this->eps_GL[0][0];
+        this->eps_GL_v[DOF_uy] = this->eps_GL[1][1];
+        this->eps_GL_v[DOF_uz] = this->eps_GL[2][2];
+        this->eps_GL_v[nHexDOFs + DOF_ux] = this->eps_GL[0][1];
+        this->eps_GL_v[nHexDOFs + DOF_uy] = this->eps_GL[1][2];
+        this->eps_GL_v[nHexDOFs + DOF_uz] = this->eps_GL[0][2];
     }
 
-    void calculateStress() {
-        this->calculateStrain();
-        for (int dir = 0; dir < directions; dir++) {
-            this->sigma_v[dir] = 0;
-            for (int cols = 0; cols < directions; cols++) {
-                this->sigma_v[dir] += D[dir][cols] * this->epsilon_v[cols];
-            }
-        }
-
-        this->sigma[0][0] = this->sigma_v[0];
-        this->sigma[1][1] = this->sigma_v[1];
-        this->sigma[2][2] = this->sigma_v[2];
-
-        this->sigma[0][1] = this->sigma_v[3];
-        this->sigma[1][0] = this->sigma_v[3];
-        this->sigma[1][2] = this->sigma_v[4];
-        this->sigma[2][1] = this->sigma_v[4];
-        this->sigma[2][0] = this->sigma_v[5];
-        this->sigma[0][2] = this->sigma_v[5];
-    }
+    // void calculateStress() {
+    //     this->calculateStrain();
+    //     for (int dir = 0; dir < directions; dir++) {
+    //         this->sigma_v[dir] = 0;
+    //         for (int cols = 0; cols < directions; cols++) {
+    //             this->sigma_v[dir] += D[dir][cols] * this->epsilon_v[cols];
+    //         }
+    //     }
+    //
+    //     this->sigma[0][0] = this->sigma_v[0];
+    //     this->sigma[1][1] = this->sigma_v[1];
+    //     this->sigma[2][2] = this->sigma_v[2];
+    //
+    //     this->sigma[0][1] = this->sigma_v[3];
+    //     this->sigma[1][0] = this->sigma_v[3];
+    //     this->sigma[1][2] = this->sigma_v[4];
+    //     this->sigma[2][1] = this->sigma_v[4];
+    //     this->sigma[2][0] = this->sigma_v[5];
+    //     this->sigma[0][2] = this->sigma_v[5];
+    // }
 
     /// @brief Calculates the 2nd Piola Stress
     /// Matrix τ(3x3) = |F| * F^{-1} * σ * F^{-T}
-    void calculatePiola2() {
-        this->calculateStress();
-        for (int i = 0; i < nHexDOFs; i++) {
-            for (int j = i; j < nHexDOFs; j++) {
-                this->S2[i][j] = 0;
-                for (int l = 0; l < nHexDOFs; l++) {
-                    double sum = 0;
-                    for (int k = 0; k < nHexDOFs; k++) {
-                        sum += this->F_inv[i][k] * this->sigma[k][l];
-                    }
-                    this->S2[i][j] += sum * F_inv[j][l];
-                }
-                this->S2[i][j] *= detF;
-                (i != j) ? this->S2[j][i] = this->S2[i][j] : 0;
+    void calculatePiola2(double ksi, double eta, double zeta) {
+        // this->getDeformGradient(ksi, eta, zeta);
+        // this->calculateStress();
+        // for (int i = 0; i < nHexDOFs; i++) {
+        //     for (int j = i; j < nHexDOFs; j++) {
+        //         this->S2[i][j] = 0;
+        //         for (int l = 0; l < nHexDOFs; l++) {
+        //             double sum = 0;
+        //             for (int k = 0; k < nHexDOFs; k++) {
+        //                 sum += this->F_inv[i][k] * this->sigma[k][l];
+        //             }
+        //             this->S2[i][j] += sum * this->F_inv[j][l];
+        //         }
+        //         this->S2[i][j] *= this->detF;
+        //         (i != j) ? this->S2[j][i] = this->S2[i][j] : 0;
+        //     }
+        // }
+        //
+        // this->S2_v[0] = this->S2[0][0];
+        // this->S2_v[1] = this->S2[1][1];
+        // this->S2_v[2] = this->S2[2][2];
+        // this->S2_v[3] = this->S2[0][1];
+        // this->S2_v[4] = this->S2[1][2];
+        // this->S2_v[5] = this->S2[0][2];
+
+        this->getDeformGradient(ksi, eta, zeta);
+        this->calculateGreenLagrangeStrain(ksi, eta, zeta);
+
+        for (int i = 0; i < directions; i++) {
+            for (int j = 0; j < directions; j++) {
+                this->S2_v[i] = D[i][j] * this->eps_GL_v[j];
             }
         }
 
-        this->S2_v[0] = this->S2[0][0];
-        this->S2_v[1] = this->S2[1][1];
-        this->S2_v[2] = this->S2[2][2];
-        this->S2_v[3] = this->S2[0][1];
-        this->S2_v[4] = this->S2[1][2];
-        this->S2_v[5] = this->S2[0][2];
+        this->S2[DOF_ux][DOF_ux] = this->S2_v[DOF_ux];
+        this->S2[DOF_uy][DOF_uy] = this->S2_v[DOF_uy];
+        this->S2[DOF_uz][DOF_uz] = this->S2_v[DOF_uz];
+
+        this->S2[DOF_ux][DOF_uy] = this->S2_v[nHexDOFs + DOF_ux];
+        this->S2[DOF_uy][DOF_ux] = this->S2_v[nHexDOFs + DOF_ux];
+
+        this->S2[DOF_uy][DOF_uz] = this->S2_v[nHexDOFs + DOF_uy];
+        this->S2[DOF_uz][DOF_uy] = this->S2_v[nHexDOFs + DOF_uy];
+
+        this->S2[DOF_uz][DOF_ux] = this->S2_v[nHexDOFs + DOF_uz];
+        this->S2[DOF_ux][DOF_uz] = this->S2_v[nHexDOFs + DOF_uz];
     }
 
     /// @brief Debug Method, Prints Cauchy Stress and Engineering Strain Matrices
