@@ -13,12 +13,12 @@ gmsh.initialize()
 gmsh.model.add(fname)
 
 nx = 4
-ny = 25
-nz = 2
+ny = 40
+nz = 4
 
 Lx = 1
 Ly = 10
-Lz = 0.2
+Lz = 1
 
 # nx = 3
 # ny = 3
