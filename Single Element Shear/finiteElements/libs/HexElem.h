@@ -587,14 +587,14 @@ class hex8 : public HexElem<linear> {
         }
     }
 
-    // void calculateStrain() {
-    //     for (int dir = 0; dir < directions; dir++) {
-    //         this->epsilon_v[dir] = 0;
-    //         for (int cols = 0; cols < nHexDOFs * this->elemNodes; cols++) {
-    //             this->epsilon_v[dir] += this->B_L[dir][cols] * this->d[cols];
-    //         }
-    //     }
-    // }
+    void calculateStrain() {
+        for (int dir = 0; dir < directions; dir++) {
+            this->epsilon_v[dir] = 0;
+            for (int cols = 0; cols < nHexDOFs * this->elemNodes; cols++) {
+                this->epsilon_v[dir] += this->B_L[dir][cols] * this->d[cols];
+            }
+        }
+    }
 
     void calculateGreenLagrangeStrain(double ksi, double eta, double zeta) {
         this->getDeformGradient(ksi, eta, zeta);
@@ -612,26 +612,26 @@ class hex8 : public HexElem<linear> {
         this->eps_GL_v[nHexDOFs + DOF_uz] = this->eps_GL[0][2];
     }
 
-    // void calculateStress() {
-    //     this->calculateStrain();
-    //     for (int dir = 0; dir < directions; dir++) {
-    //         this->sigma_v[dir] = 0;
-    //         for (int cols = 0; cols < directions; cols++) {
-    //             this->sigma_v[dir] += D[dir][cols] * this->epsilon_v[cols];
-    //         }
-    //     }
-    //
-    //     this->sigma[0][0] = this->sigma_v[0];
-    //     this->sigma[1][1] = this->sigma_v[1];
-    //     this->sigma[2][2] = this->sigma_v[2];
-    //
-    //     this->sigma[0][1] = this->sigma_v[3];
-    //     this->sigma[1][0] = this->sigma_v[3];
-    //     this->sigma[1][2] = this->sigma_v[4];
-    //     this->sigma[2][1] = this->sigma_v[4];
-    //     this->sigma[2][0] = this->sigma_v[5];
-    //     this->sigma[0][2] = this->sigma_v[5];
-    // }
+    void calculateStress() {
+        this->calculateStrain();
+        for (int dir = 0; dir < directions; dir++) {
+            this->sigma_v[dir] = 0;
+            for (int cols = 0; cols < directions; cols++) {
+                this->sigma_v[dir] += D[dir][cols] * this->epsilon_v[cols];
+            }
+        }
+
+        this->sigma[0][0] = this->sigma_v[0]; // σ_xx
+        this->sigma[1][1] = this->sigma_v[1]; // σ_yy
+        this->sigma[2][2] = this->sigma_v[2]; // σ_zz
+
+        this->sigma[0][1] = this->sigma_v[3]; // σ_xy
+        this->sigma[1][0] = this->sigma_v[3];
+        this->sigma[1][2] = this->sigma_v[4]; // σ_yz
+        this->sigma[2][1] = this->sigma_v[4];
+        this->sigma[2][0] = this->sigma_v[5]; // σ_zx
+        this->sigma[0][2] = this->sigma_v[5];
+    }
 
     /// @brief Calculates the 2nd Piola Stress
     /// Matrix τ(3x3) = |F| * F^{-1} * σ * F^{-T}
