@@ -210,10 +210,14 @@ int main(int argc, char const *argv[]) {
     size_t nnz_max_ss = fixedDOFs * elemNodes * nHexDOFs * elemNodes / 3;
 
     // Solution {u} Vector
-    cholmod_dense *u_free = cholmod_allocate_dense(freeDOFs, 1, freeDOFs,
-                                                   CHOLMOD_DOUBLE + CHOLMOD_REAL, &c);
-    cholmod_dense *u_fixed = cholmod_allocate_dense(fixedDOFs, 1, freeDOFs,
+    cholmod_dense *du_free = cholmod_allocate_dense(freeDOFs, 1, freeDOFs,
                                                     CHOLMOD_DOUBLE + CHOLMOD_REAL, &c);
+    cholmod_dense *du_fixed = cholmod_allocate_dense(fixedDOFs, 1, freeDOFs,
+                                                     CHOLMOD_DOUBLE + CHOLMOD_REAL, &c);
+
+    // Displacements {d} Vector
+    double d_free[freeDOFs];
+    double d_fixed[fixedDOFs];
 
     // RHS {b} Vector
     cholmod_dense *b_free = cholmod_allocate_dense(freeDOFs, 1, freeDOFs,
@@ -222,9 +226,9 @@ int main(int argc, char const *argv[]) {
                                                     CHOLMOD_DOUBLE + CHOLMOD_REAL, &c);
 
     /// Boundary Velocities (Fix later)
-    double ux_d = 1.0; // [m/s]
-    // double uy_d = 0.0; // [m/s]
-    // double uz_d = 0.0; // [m/s]
+    double ux_d = 3.0; // [m/s]
+    double uy_d = 0.0; // [m/s]
+    double uz_d = 0.0; // [m/s]
 
     /// Boundary Accelerations (Fix later)
     // double ux_dd = 0.0; // [m/s^2]
@@ -252,14 +256,19 @@ int main(int argc, char const *argv[]) {
     for (int i = 0; i < nNodes; i++) {
         fprintf(fp_dofVector, "%d,%d\n", i, globalDOFs[i]);
     }
-
     /// Transient Simulation
     // If Static, t_stop = dt = 1 -> |u_dot| = |u|
     for (double t = 0; t <= t_stop; t += dt) {
         double res = INFINITY;
         int iter = 0;
         printf("t = %lf\n", t);
-        while (fabs(res) >= 1e-5 && iter <= 100) {
+
+        for (int i = 0; i < freeDOFs; i++)
+            d_free[i] = 0.0;
+        for (int i = 0; i < fixedDOFs; i++)
+            d_fixed[i] = 0.0;
+
+        while (fabs(res) >= 1e-4 && iter <= 50) {
             // k_ff : [K] Matrix of Free DOFs
             // Dimensions : (# Free DOFs) x (# Free DOFs)
             cholmod_sparse *k_ff;
@@ -290,8 +299,8 @@ int main(int argc, char const *argv[]) {
 
             // Reset Dense Vectors
             for (int i = 0; i < freeDOFs; i++) {
-                ((double *) u_free->x)[i] = 0;
-                ((double *) u_fixed->x)[i] = 0;
+                ((double *) du_free->x)[i] = 0;
+                ((double *) du_fixed->x)[i] = 0;
 
                 ((double *) b_free->x)[i] = 0;
                 ((double *) b_fixed->x)[i] = 0;
@@ -311,16 +320,6 @@ int main(int argc, char const *argv[]) {
                 // Calculate Local Stiffness Matrix
                 localStiff(&elemArray[elem], k_local);
                 localStiff_NL(&elemArray[elem], k_local_NL);
-
-                // if (t > 0) {
-                //     for (int i = 0; i < 24; i++) {
-                //         for (int j = 0; j < 24; j++) {
-                //             printf("%4.3e,", k_local_NL[i][j]);
-                //         }
-                //         printf("\n");
-                //     }
-                //     printf("\n");
-                // }
 
                 // Calculate Local Internal Forces
                 intForce(&elemArray[elem], Fint);
@@ -400,9 +399,9 @@ int main(int argc, char const *argv[]) {
 
                     /// Fixed DOFs (Boundary Conditions)
                     if (elemArray[elem].pGroupElem[i] == 4) {
-                        ((double *) u_fixed->x)[row - freeDOFs + DOF_ux] = ux_d * t;
-                        ((double *) u_fixed->x)[row - freeDOFs + DOF_uy] = 0;
-                        ((double *) u_fixed->x)[row - freeDOFs + DOF_uz] = 0;
+                        ((double *) du_fixed->x)[row - freeDOFs + DOF_ux] = ux_d * t;
+                        ((double *) du_fixed->x)[row - freeDOFs + DOF_uy] = uy_d * t;
+                        ((double *) du_fixed->x)[row - freeDOFs + DOF_uz] = uz_d * t;
                     }
                 }
             }
@@ -415,33 +414,25 @@ int main(int argc, char const *argv[]) {
 
             /// Construct Free DOF Equation {RHS}
             if (iter == 0) { // p.77/542 Borst Book
-                /// {RHS} = b_free - K_fs * u_fixed
+                /// {RHS} = b_free - K_fs * du_fixed
                 double p1[2] = {1.0, 0}, m1[2] = {-1.0, 0}; // Basic Scalars
-                cholmod_sdmult(k_fs, 0, m1, p1, u_fixed, b_free, &c);
+                cholmod_sdmult(k_fs, 0, m1, p1, du_fixed, b_free, &c);
             }
 
             FILE *f_kff = fopen("k_ff.txt", "w");
             cholmod_write_sparse(f_kff, k_ff, NULL, NULL, &c);
             fclose(f_kff);
 
-            // FILE *f_bf = fopen("b.txt", "w");
-            // cholmod_write_dense(f_kff, b_free, NULL, &c);
-            // fclose(f_bf);
-
             /// Solve Free DOF Equation
             cholmod_factor *L = cholmod_analyze(k_ff, &c);
             cholmod_factorize(k_ff, L, &c);
-            u_free = cholmod_solve(CHOLMOD_A, L, b_free, &c);
+            du_free = cholmod_solve(CHOLMOD_A, L, b_free, &c);
             cholmod_free_factor(&L, &c);
-
-            // for (int i = 0; i < freeDOFs; i++) {
-            //     printf("%lf,", ((double *) u_free->x)[i]);
-            // }
 
             /// Calculate Residual
             res = 0;
             for (int i = 0; i < freeDOFs; i++) {
-                res += fabs(((double *) u_free->x)[i]);
+                res += fabs(((double *) du_free->x)[i]);
             }
             res /= freeDOFs;
             printf("\tIter = %3d, R = %+.8lf\n", iter++, res);
@@ -452,30 +443,25 @@ int main(int argc, char const *argv[]) {
                     int row = globalDOFs[elemArray[elem].nodeIndex[i]];
                     if (row < freeDOFs) {
                         /// Assign Displacements to Element
-                        elemArray[elem].d[i * nHexDOFs + DOF_ux] += ((double *) u_free->x)[row + DOF_ux];
-                        elemArray[elem].d[i * nHexDOFs + DOF_uy] += ((double *) u_free->x)[row + DOF_uy];
-                        elemArray[elem].d[i * nHexDOFs + DOF_uz] += ((double *) u_free->x)[row + DOF_uz];
+                        elemArray[elem].d[i * nHexDOFs + DOF_ux] += ((double *) du_free->x)[row + DOF_ux];
+                        elemArray[elem].d[i * nHexDOFs + DOF_uy] += ((double *) du_free->x)[row + DOF_uy];
+                        elemArray[elem].d[i * nHexDOFs + DOF_uz] += ((double *) du_free->x)[row + DOF_uz];
                     } else {
-                        elemArray[elem].d[i * nHexDOFs + DOF_ux] = ((double *) u_fixed->x)[row - freeDOFs + DOF_ux];
-                        elemArray[elem].d[i * nHexDOFs + DOF_uy] = ((double *) u_fixed->x)[row - freeDOFs + DOF_uy];
-                        elemArray[elem].d[i * nHexDOFs + DOF_uz] = ((double *) u_fixed->x)[row - freeDOFs + DOF_uz];
+                        elemArray[elem].d[i * nHexDOFs + DOF_ux] += ((double *) du_fixed->x)[row - freeDOFs + DOF_ux];
+                        elemArray[elem].d[i * nHexDOFs + DOF_uy] += ((double *) du_fixed->x)[row - freeDOFs + DOF_uy];
+                        elemArray[elem].d[i * nHexDOFs + DOF_uz] += ((double *) du_fixed->x)[row - freeDOFs + DOF_uz];
                     }
                 }
             }
 
-            // // Free DOFs
-            // fprintf(fp_u_free, "%2.12lf,", t);
-            // for (int i = 0; i < freeDOFs - 1; i++) {
-            //     fprintf(fp_u_free, "%.12lf,", ((double *) u_free->x)[i]);
-            // }
-            // fprintf(fp_u_free, "%.12lf\n", ((double *) u_free->x)[freeDOFs - 1]);
-
-            // // Indices of Fixed DOFs
-            // fprintf(fp_u_fixed, "%2.12lf,", t);
-            // for (int i = 0; i < fixedDOFs - 1; i++) {
-            //     fprintf(fp_u_fixed, "%.12lf,", ((double *) u_fixed->x)[i]);
-            // }
-            // fprintf(fp_u_fixed, "%.12lf\n", ((double *) u_fixed->x)[fixedDOFs - 1]);
+            // Update Free Displacement Vectors for output
+            for (int i = 0; i < freeDOFs; i++) {
+                d_free[i] += ((double *) du_free->x)[i];
+            }
+            // Update Fixed Displacement Vectors for output
+            for (int i = 0; i < fixedDOFs; i++) {
+                d_fixed[i] = ((double *) du_fixed->x)[i];
+            }
 
             /// Free Sparse Matrices
             cholmod_free_sparse(&k_ff, &c);
@@ -489,6 +475,21 @@ int main(int argc, char const *argv[]) {
             cholmod_free_triplet(&T_sf, &c);
             cholmod_free_triplet(&T_ss, &c);
         }
+
+        /// Output Updated Displacement Vectors
+        // Free DOFs
+        fprintf(fp_u_free, "%2.12lf,", t);
+        for (int i = 0; i < freeDOFs; i++) {
+            fprintf(fp_u_free, "%.12lf,", d_free[i]);
+        }
+        fprintf(fp_u_free, "\n");
+
+        // Indices of Fixed DOFs
+        fprintf(fp_u_fixed, "%2.12lf,", t);
+        for (int i = 0; i < fixedDOFs; i++) {
+            fprintf(fp_u_fixed, "%.12lf,", d_fixed[i]);
+        }
+        fprintf(fp_u_fixed, "\n");
     }
 
     // Close Files
@@ -517,8 +518,8 @@ int main(int argc, char const *argv[]) {
     }
 
     /// Free Dense Matrices
-    cholmod_free_dense(&u_free, &c);
-    cholmod_free_dense(&u_fixed, &c);
+    cholmod_free_dense(&du_free, &c);
+    cholmod_free_dense(&du_fixed, &c);
     cholmod_free_dense(&b_free, &c);
     cholmod_free_dense(&b_fixed, &c);
 
@@ -566,7 +567,7 @@ void localStiff(hexType *elem, double **k_local) {
                         }
                     }
                     for (int j = 0; j < nHexDOFs * elemNodes; j++) {
-                        double BT_D_B_ij = 0;
+                        double BT_D_B_ij = 0; // k_L[i,j] for each GQ
                         for (int row = 0; row < directions; row++) {
                             BT_D_B_ij += BT_D[row] * elem->B_L[row][j];
                         }
@@ -595,19 +596,17 @@ void localStiff_NL(hexType *elem, double **k_local_NL) {
 
                 for (int i = 0; i < nHexDOFs * elemNodes; i++) {
                     for (int j = 0; j < nHexDOFs * elemNodes; j++) {
-                        double sum = 0; // k_NL[i,j] for each GQ
+                        double BNLT_S2_BNL_ij = 0; // k_NL[i,j] for each GQ
                         for (int l = 0; l < nHexDOFs * nHexDOFs; l++) {
-                            double BNL_S2 = 0;
+                            double BNLT_S2 = 0;
                             for (int k = 0; k < nHexDOFs * nHexDOFs; k++) {
                                 if (k / nHexDOFs == l / nHexDOFs) {
-                                    BNL_S2 += elem->B_NL[k][i] * elem->S2[k % nHexDOFs][l % nHexDOFs];
-                                    // printf("%d %d\n", k, l);
+                                    BNLT_S2 += elem->B_NL[k][i] * elem->S2[k % nHexDOFs][l % nHexDOFs];
                                 }
                             }
-                            sum += BNL_S2 * elem->B_NL[l][j];
+                            BNLT_S2_BNL_ij += BNLT_S2 * elem->B_NL[l][j];
                         }
-                        // printf("----\n");
-                        k_local_NL[i][j] += sum * elem->detJ * weight;
+                        k_local_NL[i][j] += BNLT_S2_BNL_ij * elem->detJ * weight;
                     }
                 }
             }

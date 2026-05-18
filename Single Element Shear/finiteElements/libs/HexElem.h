@@ -232,6 +232,10 @@ class HexElem {
             this->nodeIndex[i] = nodeIndex[i];
             this->pGroupElem[i] = pGroupElem[i];
         }
+
+        for (int i = 0; i < nHexDOFs * elemNodes; i++) {
+            this->d[i] = 0.0;
+        }
     }
 
     /// @brief Sets Element Values {ux_dd,uy_dd,uz_dd} to 0
@@ -480,7 +484,7 @@ class hex8 : public HexElem<linear> {
         this->jacobian(ksi, eta, zeta);
         this->getDeformGradient(ksi, eta, zeta);
         // memset(this->B_L, 0, sizeof(this->B_L));
-        for (int i = 0; i < nHexDOFs * nHexDOFs; i++) {
+        for (int i = 0; i < directions; i++) {
             for (int j = 0; j < nHexDOFs * elemNodes; j++) {
                 this->B_L[i][j] = 0;
             }
