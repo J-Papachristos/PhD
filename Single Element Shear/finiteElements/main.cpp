@@ -226,9 +226,9 @@ int main(int argc, char const *argv[]) {
                                                     CHOLMOD_DOUBLE + CHOLMOD_REAL, &c);
 
     /// Boundary Velocities (Fix later)
-    double ux_d = 3.0; // [m/s]
-    double uy_d = 0.0; // [m/s]
-    double uz_d = 0.0; // [m/s]
+    double ux_d = +5.0; // [m/s]
+    double uy_d = +0.0; // [m/s]
+    double uz_d = +0.0; // [m/s]
 
     /// Boundary Accelerations (Fix later)
     // double ux_dd = 0.0; // [m/s^2]
@@ -261,14 +261,14 @@ int main(int argc, char const *argv[]) {
     for (double t = 0; t <= t_stop; t += dt) {
         double res = INFINITY;
         int iter = 0;
-        printf("t = %lf\n", t);
+        printf("t = %.3lf :\n", t);
 
         for (int i = 0; i < freeDOFs; i++)
             d_free[i] = 0.0;
         for (int i = 0; i < fixedDOFs; i++)
             d_fixed[i] = 0.0;
 
-        while (fabs(res) >= 1e-4 && iter <= 50) {
+        while (fabs(res) >= 1e-5 && iter <= 25) {
             // k_ff : [K] Matrix of Free DOFs
             // Dimensions : (# Free DOFs) x (# Free DOFs)
             cholmod_sparse *k_ff;
@@ -432,24 +432,24 @@ int main(int argc, char const *argv[]) {
             /// Calculate Residual
             res = 0;
             for (int i = 0; i < freeDOFs; i++) {
-                res += fabs(((double *) du_free->x)[i]);
+                res += (((double *) du_free->x)[i]);
             }
             res /= freeDOFs;
-            printf("\tIter = %3d, R = %+.8lf\n", iter++, res);
+            printf("\tIter = %03d, R = %+.8lf\n", iter++, res);
 
             /// Update Displacements
             for (int elem = 0; elem < nElems; elem++) {
                 for (int i = 0; i < elemNodes; i++) {
                     int row = globalDOFs[elemArray[elem].nodeIndex[i]];
+                    /// Assign Displacements to Element
                     if (row < freeDOFs) {
-                        /// Assign Displacements to Element
-                        elemArray[elem].d[i * nHexDOFs + DOF_ux] += ((double *) du_free->x)[row + DOF_ux];
-                        elemArray[elem].d[i * nHexDOFs + DOF_uy] += ((double *) du_free->x)[row + DOF_uy];
-                        elemArray[elem].d[i * nHexDOFs + DOF_uz] += ((double *) du_free->x)[row + DOF_uz];
+                        // elemArray[elem].d[i * nHexDOFs + DOF_ux] += ((double *) du_free->x)[row + DOF_ux];
+                        // elemArray[elem].d[i * nHexDOFs + DOF_uy] += ((double *) du_free->x)[row + DOF_uy];
+                        // elemArray[elem].d[i * nHexDOFs + DOF_uz] += ((double *) du_free->x)[row + DOF_uz];
                     } else {
-                        elemArray[elem].d[i * nHexDOFs + DOF_ux] += ((double *) du_fixed->x)[row - freeDOFs + DOF_ux];
-                        elemArray[elem].d[i * nHexDOFs + DOF_uy] += ((double *) du_fixed->x)[row - freeDOFs + DOF_uy];
-                        elemArray[elem].d[i * nHexDOFs + DOF_uz] += ((double *) du_fixed->x)[row - freeDOFs + DOF_uz];
+                        // elemArray[elem].d[i * nHexDOFs + DOF_ux] += ((double *) du_fixed->x)[row - freeDOFs + DOF_ux];
+                        // elemArray[elem].d[i * nHexDOFs + DOF_uy] += ((double *) du_fixed->x)[row - freeDOFs + DOF_uy];
+                        // elemArray[elem].d[i * nHexDOFs + DOF_uz] += ((double *) du_fixed->x)[row - freeDOFs + DOF_uz];
                     }
                 }
             }
@@ -509,6 +509,7 @@ int main(int argc, char const *argv[]) {
     if (calcStressStrain) {
         FILE *fp_stress = fopen("stress.txt", "w");
         for (int elem = 0; elem < nElems; elem++) {
+            elemArray[elem].calculateStress();
             for (int dir = 0; dir < directions; dir++) {
                 fprintf(fp_stress, "%lf,", elemArray[elem].sigma_v[dir]);
             }
