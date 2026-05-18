@@ -16,13 +16,13 @@ nx = 4
 ny = 25
 nz = 2
 
-# nx = 1
-# ny = 1
-# nz = 1
-
 Lx = 1
 Ly = 10
 Lz = 0.2
+
+# nx = 3
+# ny = 3
+# nz = 3
 
 # Lx = 1
 # Ly = 1
