@@ -621,8 +621,6 @@ void intForce(hexType *elem, double *Fint) {
         for (int iEta = 0; iEta < GQ_POINTS; iEta++) {
             for (int iZeta = 0; iZeta < GQ_POINTS; iZeta++) {
                 double weight = w_GQ[iKsi] * w_GQ[iEta] * w_GQ[iZeta];
-                elem->jacobian(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
-                elem->getDeformGradient(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
                 elem->getLinearDeformMatrix(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
                 elem->calculatePiola2(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
 
