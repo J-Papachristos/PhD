@@ -268,7 +268,7 @@ int main(int argc, char const *argv[]) {
         for (int i = 0; i < fixedDOFs; i++)
             d_fixed[i] = 0.0;
 
-        while (fabs(res) >= 1e-5 && iter <= 25) {
+        while (fabs(res) >= 1e-4 && iter <= 2) {
             // k_ff : [K] Matrix of Free DOFs
             // Dimensions : (# Free DOFs) x (# Free DOFs)
             cholmod_sparse *k_ff;
@@ -443,13 +443,13 @@ int main(int argc, char const *argv[]) {
                     int row = globalDOFs[elemArray[elem].nodeIndex[i]];
                     /// Assign Displacements to Element
                     if (row < freeDOFs) {
-                        // elemArray[elem].d[i * nHexDOFs + DOF_ux] += ((double *) du_free->x)[row + DOF_ux];
-                        // elemArray[elem].d[i * nHexDOFs + DOF_uy] += ((double *) du_free->x)[row + DOF_uy];
-                        // elemArray[elem].d[i * nHexDOFs + DOF_uz] += ((double *) du_free->x)[row + DOF_uz];
+                        elemArray[elem].d[i * nHexDOFs + DOF_ux] += ((double *) du_free->x)[row + DOF_ux];
+                        elemArray[elem].d[i * nHexDOFs + DOF_uy] += ((double *) du_free->x)[row + DOF_uy];
+                        elemArray[elem].d[i * nHexDOFs + DOF_uz] += ((double *) du_free->x)[row + DOF_uz];
                     } else {
-                        // elemArray[elem].d[i * nHexDOFs + DOF_ux] += ((double *) du_fixed->x)[row - freeDOFs + DOF_ux];
-                        // elemArray[elem].d[i * nHexDOFs + DOF_uy] += ((double *) du_fixed->x)[row - freeDOFs + DOF_uy];
-                        // elemArray[elem].d[i * nHexDOFs + DOF_uz] += ((double *) du_fixed->x)[row - freeDOFs + DOF_uz];
+                        elemArray[elem].d[i * nHexDOFs + DOF_ux] = ((double *) du_fixed->x)[row - freeDOFs + DOF_ux];
+                        elemArray[elem].d[i * nHexDOFs + DOF_uy] = ((double *) du_fixed->x)[row - freeDOFs + DOF_uy];
+                        elemArray[elem].d[i * nHexDOFs + DOF_uz] = ((double *) du_fixed->x)[row - freeDOFs + DOF_uz];
                     }
                 }
             }
@@ -556,7 +556,6 @@ void localStiff(hexType *elem, double **k_local) {
         for (int iEta = 0; iEta < GQ_POINTS; iEta++) {
             for (int iZeta = 0; iZeta < GQ_POINTS; iZeta++) {
                 double weight = w_GQ[iKsi] * w_GQ[iEta] * w_GQ[iZeta];
-                elem->jacobian(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
                 elem->getLinearDeformMatrix(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
 
                 for (int i = 0; i < nHexDOFs * elemNodes; i++) {
@@ -590,8 +589,6 @@ void localStiff_NL(hexType *elem, double **k_local_NL) {
         for (int iEta = 0; iEta < GQ_POINTS; iEta++) {
             for (int iZeta = 0; iZeta < GQ_POINTS; iZeta++) {
                 double weight = w_GQ[iKsi] * w_GQ[iEta] * w_GQ[iZeta];
-                elem->jacobian(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
-                elem->getDeformGradient(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
                 elem->getNonLinearDeformMatrix(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
                 elem->calculatePiola2(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
 

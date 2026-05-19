@@ -15,12 +15,12 @@ typedef double (*funcPtr)(double, double, double);
 
 /// Gauss-Quadrature
 #define GQ_POINTS 2
-double points_GQ[GQ_POINTS] = {-sqrt(1.0 / 3.0), sqrt(1.0 / 3.0)}; // Gauss-Quadrature Isoparametric Points
-double w_GQ[GQ_POINTS] = {1.0, 1.0};                               // Gauss-Quadrature Weights
+double points_GQ[GQ_POINTS] = {-sqrt(1.0 / 3.0), +sqrt(1.0 / 3.0)}; // Gauss-Quadrature Isoparametric Points
+double w_GQ[GQ_POINTS] = {+1.0, +1.0};                               // Gauss-Quadrature Weights
 
 // #define GQ_POINTS 3
-// double points_GQ[GQ_POINTS] = {-sqrt(0.6), +0, sqrt(0.6)};        // Gauss-Quadrature Isoparametric Points
-// double w_GQ[GQ_POINTS] = {(5.0 / 9.0), (8.0 / 9.0), (5.0 / 9.0)}; // Gauss-Quadrature Weights
+// double points_GQ[GQ_POINTS] = {-sqrt(0.6), +0, +sqrt(0.6)};        // Gauss-Quadrature Isoparametric Points
+// double w_GQ[GQ_POINTS] = {+(5.0 / 9.0), +(8.0 / 9.0), +(5.0 / 9.0)}; // Gauss-Quadrature Weights
 
 enum directionEnum {
     xx,
@@ -636,31 +636,6 @@ class hex8 : public HexElem<linear> {
     /// @brief Calculates the 2nd Piola Stress
     /// Matrix τ(3x3) = |F| * F^{-1} * σ * F^{-T}
     void calculatePiola2(double ksi, double eta, double zeta) {
-        // this->getDeformGradient(ksi, eta, zeta);
-        // this->calculateStress();
-        // for (int i = 0; i < nHexDOFs; i++) {
-        //     for (int j = i; j < nHexDOFs; j++) {
-        //         this->S2[i][j] = 0;
-        //         for (int l = 0; l < nHexDOFs; l++) {
-        //             double sum = 0;
-        //             for (int k = 0; k < nHexDOFs; k++) {
-        //                 sum += this->F_inv[i][k] * this->sigma[k][l];
-        //             }
-        //             this->S2[i][j] += sum * this->F_inv[j][l];
-        //         }
-        //         this->S2[i][j] *= this->detF;
-        //         (i != j) ? this->S2[j][i] = this->S2[i][j] : 0;
-        //     }
-        // }
-        //
-        // this->S2_v[0] = this->S2[0][0];
-        // this->S2_v[1] = this->S2[1][1];
-        // this->S2_v[2] = this->S2[2][2];
-        // this->S2_v[3] = this->S2[0][1];
-        // this->S2_v[4] = this->S2[1][2];
-        // this->S2_v[5] = this->S2[0][2];
-
-        this->getDeformGradient(ksi, eta, zeta);
         this->calculateGreenLagrangeStrain(ksi, eta, zeta);
 
         for (int i = 0; i < directions; i++) {
