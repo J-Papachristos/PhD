@@ -16,7 +16,7 @@ typedef double (*funcPtr)(double, double, double);
 /// Gauss-Quadrature
 #define GQ_POINTS 2
 double points_GQ[GQ_POINTS] = {-sqrt(1.0 / 3.0), +sqrt(1.0 / 3.0)}; // Gauss-Quadrature Isoparametric Points
-double w_GQ[GQ_POINTS] = {+1.0, +1.0};                               // Gauss-Quadrature Weights
+double w_GQ[GQ_POINTS] = {+1.0, +1.0};                              // Gauss-Quadrature Weights
 
 // #define GQ_POINTS 3
 // double points_GQ[GQ_POINTS] = {-sqrt(0.6), +0, +sqrt(0.6)};        // Gauss-Quadrature Isoparametric Points
@@ -187,6 +187,11 @@ class HexElem {
     double F_inv[nHexDOFs][nHexDOFs]; // Inverse Deformation Gradient (3x3)
     double detF = 0;                  // Deformation Gradient Determinant
 
+    // Cauchy-Green Strain Tensor
+    double C[nHexDOFs][nHexDOFs];     // Right Cauchy-Green Strain Tensor (3x3)
+    double C_inv[nHexDOFs][nHexDOFs]; // Inverse Right Cauchy-Green Strain Tensor (3x3)
+    double detC = 0;                  // Right Cauchy-Green Strain Tensor Determinant
+
     // Nodal Displacement Vector [u1_x, u1_y, u1_z, ..., un_x, un_y, un_z]
     double d[nHexDOFs * elemNodes];
 
@@ -238,6 +243,10 @@ class HexElem {
         }
     }
 
+    int getNelem() {
+        return this->nelem;
+    }
+
     /// @brief Sets Element Values {ux_dd,uy_dd,uz_dd} to 0
     void zeroElementValues() {
         for (int i = 0; i < elemNodes; i++) {
@@ -266,12 +275,14 @@ class HexElem {
         printf("|%+.8lf %+.8lf %+.8lf|\n", this->J[0][0], this->J[0][1], this->J[0][2]);
         printf("|%+.8lf %+.8lf %+.8lf|\n", this->J[1][0], this->J[1][1], this->J[1][2]);
         printf("|%+.8lf %+.8lf %+.8lf|\n", this->J[2][0], this->J[2][1], this->J[2][2]);
+        printf("\n");
     }
     /// @brief Helper Function, Prints 3x3 [J]^{-1}
     void printInvJacobian() {
         printf("|%+.8lf %+.8lf %+.8lf|\n", this->J_inv[0][0], this->J_inv[0][1], this->J_inv[0][2]);
         printf("|%+.8lf %+.8lf %+.8lf|\n", this->J_inv[1][0], this->J_inv[1][1], this->J_inv[1][2]);
         printf("|%+.8lf %+.8lf %+.8lf|\n", this->J_inv[2][0], this->J_inv[2][1], this->J_inv[2][2]);
+        printf("\n");
     }
 };
 
@@ -333,9 +344,9 @@ class hex8 : public HexElem<linear> {
     /// @param zeta ζ Isoparametric Variable
     void jacobian(double ksi, double eta, double zeta) {
         // Init
-        double J_11 = +0, J_12 = +0, J_13 = 0;
-        double J_21 = +0, J_22 = +0, J_23 = 0;
-        double J_31 = +0, J_32 = +0, J_33 = 0;
+        double J_11 = 0, J_12 = 0, J_13 = 0;
+        double J_21 = 0, J_22 = 0, J_23 = 0;
+        double J_31 = 0, J_32 = 0, J_33 = 0;
 
         // Calculate Jacobian
         for (int i = hex8_1; i < linear; i++) {
@@ -356,27 +367,27 @@ class hex8 : public HexElem<linear> {
         this->J[2][0] = J_31, this->J[2][1] = J_32, this->J[2][2] = J_33;
 
         // Calculate Inverse Jacobian
-        double A = +((J_22 * J_33) - (J_23 * J_32));
-        double B = -((J_21 * J_33) - (J_23 * J_31));
-        double C = +((J_21 * J_32) - (J_22 * J_31));
-        double D = -((J_12 * J_33) - (J_13 * J_32));
-        double E = +((J_11 * J_33) - (J_13 * J_31));
-        double F = -((J_11 * J_32) - (J_12 * J_31));
-        double G = +((J_12 * J_23) - (J_13 * J_22));
-        double H = -((J_11 * J_23) - (J_13 * J_21));
-        double I = +((J_11 * J_22) - (J_12 * J_21));
+        double _A_ = +((J_22 * J_33) - (J_23 * J_32));
+        double _B_ = -((J_21 * J_33) - (J_23 * J_31));
+        double _C_ = +((J_21 * J_32) - (J_22 * J_31));
+        double _D_ = -((J_12 * J_33) - (J_13 * J_32));
+        double _E_ = +((J_11 * J_33) - (J_13 * J_31));
+        double _F_ = -((J_11 * J_32) - (J_12 * J_31));
+        double _G_ = +((J_12 * J_23) - (J_13 * J_22));
+        double _H_ = -((J_11 * J_23) - (J_13 * J_21));
+        double _I_ = +((J_11 * J_22) - (J_12 * J_21));
 
-        this->detJ = J_11 * A + J_12 * B + J_13 * C;
-        if (detJ != 0) {
-            this->J_inv[0][0] = A / detJ;
-            this->J_inv[1][0] = B / detJ;
-            this->J_inv[2][0] = C / detJ;
-            this->J_inv[0][1] = D / detJ;
-            this->J_inv[1][1] = E / detJ;
-            this->J_inv[2][1] = F / detJ;
-            this->J_inv[0][2] = G / detJ;
-            this->J_inv[1][2] = H / detJ;
-            this->J_inv[2][2] = I / detJ;
+        this->detJ = J_11 * _A_ + J_12 * _B_ + J_13 * _C_;
+        if (fabs(detJ) >= 1e-10) {
+            this->J_inv[0][0] = _A_ / detJ;
+            this->J_inv[1][0] = _B_ / detJ;
+            this->J_inv[2][0] = _C_ / detJ;
+            this->J_inv[0][1] = _D_ / detJ;
+            this->J_inv[1][1] = _E_ / detJ;
+            this->J_inv[2][1] = _F_ / detJ;
+            this->J_inv[0][2] = _G_ / detJ;
+            this->J_inv[1][2] = _H_ / detJ;
+            this->J_inv[2][2] = _I_ / detJ;
         }
     }
 
@@ -395,7 +406,7 @@ class hex8 : public HexElem<linear> {
 
         // Newton-Raphson Method
         double err = INFINITY;
-        while (err <= 1e-6) {
+        while (err >= 1e-6) {
             double x_t = -p->x, y_t = -p->y, z_t = -p->z; // Target Values / Functions
             for (int i = 0; i < this->elemNodes; i++) {
                 x_t += this->N(i, p->ksi, p->eta, p->zeta) * this->x[i];
@@ -436,6 +447,7 @@ class hex8 : public HexElem<linear> {
     /// @param eta  Isoparametric Coordinate η
     /// @param zeta Isoparametric Coordinate ζ
     void getDeformGradient(double ksi, double eta, double zeta) {
+        this->jacobian(ksi, eta, zeta);
         for (int i = 0; i < nHexDOFs; i++) {
             for (int j = 0; j < nHexDOFs; j++) {
                 double duidxj = 0;
@@ -452,27 +464,73 @@ class hex8 : public HexElem<linear> {
         }
 
         // Calculate Inverse Deformation Gradient
-        double A = +((this->F[1][1] * this->F[2][2]) - (this->F[1][2] * this->F[2][1]));
-        double B = -((this->F[1][0] * this->F[2][2]) - (this->F[1][2] * this->F[2][0]));
-        double C = +((this->F[1][0] * this->F[2][1]) - (this->F[1][1] * this->F[2][0]));
-        double D = -((this->F[0][1] * this->F[2][2]) - (this->F[0][2] * this->F[2][1]));
-        double E = +((this->F[0][0] * this->F[2][2]) - (this->F[0][2] * this->F[2][0]));
-        double F = -((this->F[0][0] * this->F[2][1]) - (this->F[0][1] * this->F[2][0]));
-        double G = +((this->F[0][1] * this->F[1][2]) - (this->F[0][2] * this->F[1][1]));
-        double H = -((this->F[0][0] * this->F[1][2]) - (this->F[0][2] * this->F[1][0]));
-        double I = +((this->F[0][0] * this->F[1][1]) - (this->F[0][1] * this->F[1][0]));
+        double _A_ = +((this->F[1][1] * this->F[2][2]) - (this->F[1][2] * this->F[2][1]));
+        double _B_ = -((this->F[1][0] * this->F[2][2]) - (this->F[1][2] * this->F[2][0]));
+        double _C_ = +((this->F[1][0] * this->F[2][1]) - (this->F[1][1] * this->F[2][0]));
+        double _D_ = -((this->F[0][1] * this->F[2][2]) - (this->F[0][2] * this->F[2][1]));
+        double _E_ = +((this->F[0][0] * this->F[2][2]) - (this->F[0][2] * this->F[2][0]));
+        double _F_ = -((this->F[0][0] * this->F[2][1]) - (this->F[0][1] * this->F[2][0]));
+        double _G_ = +((this->F[0][1] * this->F[1][2]) - (this->F[0][2] * this->F[1][1]));
+        double _H_ = -((this->F[0][0] * this->F[1][2]) - (this->F[0][2] * this->F[1][0]));
+        double _I_ = +((this->F[0][0] * this->F[1][1]) - (this->F[0][1] * this->F[1][0]));
 
-        this->detF = this->F[0][0] * A + this->F[0][1] * B + this->F[0][2] * C;
-        if (detF != 0) {
-            this->F_inv[0][0] = A / detF;
-            this->F_inv[1][0] = B / detF;
-            this->F_inv[2][0] = C / detF;
-            this->F_inv[0][1] = D / detF;
-            this->F_inv[1][1] = E / detF;
-            this->F_inv[2][1] = F / detF;
-            this->F_inv[0][2] = G / detF;
-            this->F_inv[1][2] = H / detF;
-            this->F_inv[2][2] = I / detF;
+        this->detF = this->F[0][0] * _A_ + this->F[0][1] * _B_ + this->F[0][2] * _C_;
+        if (fabs(detF) >= 1e-10) {
+            this->F_inv[0][0] = _A_ / detF;
+            this->F_inv[1][0] = _B_ / detF;
+            this->F_inv[2][0] = _C_ / detF;
+            this->F_inv[0][1] = _D_ / detF;
+            this->F_inv[1][1] = _E_ / detF;
+            this->F_inv[2][1] = _F_ / detF;
+            this->F_inv[0][2] = _G_ / detF;
+            this->F_inv[1][2] = _H_ / detF;
+            this->F_inv[2][2] = _I_ / detF;
+        }
+
+        if (detF <= 1e-10) {
+            printf("det{F} < 0\n");
+            this->printDeformGradient();
+            exit(1);
+        }
+    }
+
+    /// @brief Calculates the Right Cauchy-Green Strain Tensor [C] = [F]^T * [F]
+    /// @param ksi  Isoparametric Coordinate ξ
+    /// @param eta  Isoparametric Coordinate η
+    /// @param zeta Isoparametric Coordinate ζ
+    void getRightCauchy(double ksi, double eta, double zeta) {
+        this->getDeformGradient(ksi, eta, zeta);
+        for (int i = 0; i < nHexDOFs; i++) {
+            for (int j = 0; j < nHexDOFs; j++) {
+                this->C[i][j] = 0.0;
+                for (int k = 0; k < nHexDOFs; k++) {
+                    this->C[i][j] += F[k][i] * F[k][j];
+                }
+            }
+        }
+
+        // Calculate Inverse Cauchy
+        double _A_ = +((this->C[1][1] * this->C[2][2]) - (this->C[1][2] * this->C[2][1]));
+        double _B_ = -((this->C[1][0] * this->C[2][2]) - (this->C[1][2] * this->C[2][0]));
+        double _C_ = +((this->C[1][0] * this->C[2][1]) - (this->C[1][1] * this->C[2][0]));
+        double _D_ = -((this->C[0][1] * this->C[2][2]) - (this->C[0][2] * this->C[2][1]));
+        double _E_ = +((this->C[0][0] * this->C[2][2]) - (this->C[0][2] * this->C[2][0]));
+        double _F_ = -((this->C[0][0] * this->C[2][1]) - (this->C[0][1] * this->C[2][0]));
+        double _G_ = +((this->C[0][1] * this->C[1][2]) - (this->C[0][2] * this->C[1][1]));
+        double _H_ = -((this->C[0][0] * this->C[1][2]) - (this->C[0][2] * this->C[1][0]));
+        double _I_ = +((this->C[0][0] * this->C[1][1]) - (this->C[0][1] * this->C[1][0]));
+
+        this->detC = this->C[0][0] * _A_ + this->C[0][1] * _B_ + this->C[0][2] * _C_;
+        if (fabs(detC) >= 1e-10) {
+            this->C_inv[0][0] = _A_ / detC;
+            this->C_inv[1][0] = _B_ / detC;
+            this->C_inv[2][0] = _C_ / detC;
+            this->C_inv[0][1] = _D_ / detC;
+            this->C_inv[1][1] = _E_ / detC;
+            this->C_inv[2][1] = _F_ / detC;
+            this->C_inv[0][2] = _G_ / detC;
+            this->C_inv[1][2] = _H_ / detC;
+            this->C_inv[2][2] = _I_ / detC;
         }
     }
 
@@ -481,7 +539,6 @@ class hex8 : public HexElem<linear> {
     /// @param eta  Isoparametric Coordinate η
     /// @param zeta Isoparametric Coordinate ζ
     void getLinearDeformMatrix(double ksi, double eta, double zeta) {
-        this->jacobian(ksi, eta, zeta);
         this->getDeformGradient(ksi, eta, zeta);
         // memset(this->B_L, 0, sizeof(this->B_L));
         for (int i = 0; i < directions; i++) {
@@ -506,21 +563,6 @@ class hex8 : public HexElem<linear> {
             dNdz[node] += this->dNdeta(node, ksi, eta, zeta) * this->J_inv[2][1];
             dNdz[node] += this->dNdzeta(node, ksi, eta, zeta) * this->J_inv[2][2];
         }
-
-        // for (int node = 0; node < this->elemNodes; node++) {
-        //     this->B_L[DOF_ux][node * nHexDOFs + DOF_ux] = dNdx[node];
-        //     this->B_L[DOF_uy][node * nHexDOFs + DOF_uy] = dNdy[node];
-        //     this->B_L[DOF_uz][node * nHexDOFs + DOF_uz] = dNdz[node];
-
-        //     this->B_L[nHexDOFs + DOF_ux][node * nHexDOFs + DOF_ux] = dNdy[node];
-        //     this->B_L[nHexDOFs + DOF_ux][node * nHexDOFs + DOF_uy] = dNdx[node];
-
-        //     this->B_L[nHexDOFs + DOF_uy][node * nHexDOFs + DOF_uy] = dNdz[node];
-        //     this->B_L[nHexDOFs + DOF_uy][node * nHexDOFs + DOF_uz] = dNdy[node];
-
-        //     this->B_L[nHexDOFs + DOF_uz][node * nHexDOFs + DOF_ux] = dNdz[node];
-        //     this->B_L[nHexDOFs + DOF_uz][node * nHexDOFs + DOF_uz] = dNdx[node];
-        // }
 
         for (int node = 0; node < this->elemNodes; node++) {
             this->B_L[DOF_ux][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_ux] * dNdx[node];
@@ -591,25 +633,25 @@ class hex8 : public HexElem<linear> {
         for (int dir = 0; dir < directions; dir++) {
             this->epsilon_v[dir] = 0;
             for (int cols = 0; cols < nHexDOFs * this->elemNodes; cols++) {
-                this->epsilon_v[dir] += this->B_L[dir][cols] * this->d[cols];
+                this->epsilon_v[dir] += (dir > nHexDOFs ? 2.0 : 1.0) * this->B_L[dir][cols] * this->d[cols];
             }
         }
     }
 
     void calculateGreenLagrangeStrain(double ksi, double eta, double zeta) {
-        this->getDeformGradient(ksi, eta, zeta);
+        this->getRightCauchy(ksi, eta, zeta);
         for (int i = 0; i < nHexDOFs; i++) {
             for (int j = 0; j < nHexDOFs; j++) {
-                this->eps_GL[i][j] = 0.5 * (this->F[j][i] * this->F[i][j] + ((i == j) ? 1. : 0.));
+                this->eps_GL[i][j] = 0.5 * (this->C[i][j] - ((i == j) ? 1. : 0.));
             }
         }
 
         this->eps_GL_v[DOF_ux] = this->eps_GL[0][0];
         this->eps_GL_v[DOF_uy] = this->eps_GL[1][1];
         this->eps_GL_v[DOF_uz] = this->eps_GL[2][2];
-        this->eps_GL_v[nHexDOFs + DOF_ux] = this->eps_GL[0][1];
-        this->eps_GL_v[nHexDOFs + DOF_uy] = this->eps_GL[1][2];
-        this->eps_GL_v[nHexDOFs + DOF_uz] = this->eps_GL[0][2];
+        this->eps_GL_v[nHexDOFs + DOF_ux] = 2.0 * this->eps_GL[0][1];
+        this->eps_GL_v[nHexDOFs + DOF_uy] = 2.0 * this->eps_GL[1][2];
+        this->eps_GL_v[nHexDOFs + DOF_uz] = 2.0 * this->eps_GL[0][2];
     }
 
     void calculateStress() {
@@ -639,8 +681,9 @@ class hex8 : public HexElem<linear> {
         this->calculateGreenLagrangeStrain(ksi, eta, zeta);
 
         for (int i = 0; i < directions; i++) {
+            this->S2_v[i] = 0;
             for (int j = 0; j < directions; j++) {
-                this->S2_v[i] = D[i][j] * this->eps_GL_v[j];
+                this->S2_v[i] += D[i][j] * this->eps_GL_v[j];
             }
         }
 
@@ -669,9 +712,26 @@ class hex8 : public HexElem<linear> {
     /// @brief Debug Method, Prints 2nd Piola Stress and Engineering Strain Matrices
     void printStressStrain2() {
         for (int dir = 0; dir < directions; dir++) {
-            printf("%+012.8lf, %+012.8lf [GPa]\n", this->epsilon_v[dir], this->S2_v[dir] / 1e9);
+            printf("%+012.8lf, %+012.8lf [GPa]\n", this->eps_GL_v[dir], this->S2_v[dir] / 1e9);
         }
         printf("--------------------------------\n");
+    }
+
+    void printDeformGradient() {
+        printf("|%+.8lf %+.8lf %+.8lf|\n", this->F[0][0], this->F[0][1], this->F[0][2]);
+        printf("|%+.8lf %+.8lf %+.8lf|\n", this->F[1][0], this->F[1][1], this->F[1][2]);
+        printf("|%+.8lf %+.8lf %+.8lf|\n", this->F[2][0], this->F[2][1], this->F[2][2]);
+        printf("\n");
+    }
+
+    void printDisplacements() {
+        printf("Element %d:\n", this->getNelem());
+        for (int j = 0; j < elemNodes; j++) {
+            printf("\tNode[%d] = {%lf, %lf, %lf} [mm]\n", j,
+                   this->d[j * nHexDOFs + DOF_ux],
+                   this->d[j * nHexDOFs + DOF_uy],
+                   this->d[j * nHexDOFs + DOF_uz]);
+        }
     }
 };
 
@@ -1135,7 +1195,7 @@ class hex20 : public HexElem<serendipity> {
         double I = +((J_11 * J_22) - (J_12 * J_21));
 
         this->detJ = J_11 * A + J_12 * B_L + J_13 * C;
-        if (detJ != 0) {
+        if (fabs(detJ) >= 1e-10) {
             this->J_inv[0][0] = A / detJ;
             this->J_inv[1][0] = B_L / detJ;
             this->J_inv[2][0] = C / detJ;
