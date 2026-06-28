@@ -218,6 +218,10 @@ int main(int argc, char const *argv[]) {
     // Displacements {d} Vector
     double d_free[freeDOFs];
     double d_fixed[fixedDOFs];
+    for (int i = 0; i < freeDOFs; i++)
+        d_free[i] = 0.0;
+    for (int i = 0; i < fixedDOFs; i++)
+        d_fixed[i] = 0.0;
 
     // RHS {b} Vector
     cholmod_dense *b_free = cholmod_allocate_dense(freeDOFs, 1, freeDOFs,
@@ -226,7 +230,7 @@ int main(int argc, char const *argv[]) {
                                                     CHOLMOD_DOUBLE + CHOLMOD_REAL, &c);
 
     /// Boundary Velocities (Fix later)
-    double ux_d = +5.0; // [m/s]
+    double ux_d = +2.0; // [m/s]
     double uy_d = +0.0; // [m/s]
     double uz_d = +0.0; // [m/s]
 
@@ -263,12 +267,7 @@ int main(int argc, char const *argv[]) {
         int iter = 0;
         printf("t = %.3lf :\n", t);
 
-        for (int i = 0; i < freeDOFs; i++)
-            d_free[i] = 0.0;
-        for (int i = 0; i < fixedDOFs; i++)
-            d_fixed[i] = 0.0;
-
-        while (fabs(res) >= 1e-4 && iter <= 2) {
+        while (fabs(res) >= 1e-8 && iter <= 100) {
             // k_ff : [K] Matrix of Free DOFs
             // Dimensions : (# Free DOFs) x (# Free DOFs)
             cholmod_sparse *k_ff;
@@ -393,9 +392,9 @@ int main(int argc, char const *argv[]) {
                     }
 
                     /// External Forces on Free DOFs
-                    if (elemArray[elem].pGroupElem[i] == FREE_DOF) {
-                        // b_free[row + DOF_uz] += localForce(elemArray[elem], rho * g, i); // Gravity
-                    }
+                    // if (elemArray[elem].pGroupElem[i] == FREE_DOF) {
+                    //     b_free[row + DOF_uz] += localForce(elemArray[elem], rho * g, i); // Gravity
+                    // }
 
                     /// Fixed DOFs (Boundary Conditions)
                     if (elemArray[elem].pGroupElem[i] == 4) {
@@ -426,16 +425,25 @@ int main(int argc, char const *argv[]) {
             /// Solve Free DOF Equation
             cholmod_factor *L = cholmod_analyze(k_ff, &c);
             cholmod_factorize(k_ff, L, &c);
+            if (c.status != 0) {
+                printf("\tStatus = %d\n", c.status);
+                printf("\tMinor  = %ld\n", (long) L->minor);
+                return -1;
+            }
             du_free = cholmod_solve(CHOLMOD_A, L, b_free, &c);
             cholmod_free_factor(&L, &c);
 
             /// Calculate Residual
             res = 0;
+            double ares = 0;
             for (int i = 0; i < freeDOFs; i++) {
                 res += (((double *) du_free->x)[i]);
+                ares += fabs(((double *) du_free->x)[i]);
             }
             res /= freeDOFs;
-            printf("\tIter = %03d, R = %+.8lf\n", iter++, res);
+            ares /= freeDOFs;
+
+            printf("\tIter = %03d, R = %+.8lf | %+.8lf\n", iter++, res, ares);
 
             /// Update Displacements
             for (int elem = 0; elem < nElems; elem++) {
@@ -605,6 +613,12 @@ void localStiff_NL(hexType *elem, double **k_local_NL) {
                             BNLT_S2_BNL_ij += BNLT_S2 * elem->B_NL[l][j];
                         }
                         k_local_NL[i][j] += BNLT_S2_BNL_ij * elem->detJ * weight;
+                        // if (isnan(k_local_NL[i][j])) {
+                        //     printf("k_local_NL_[%d %d] is NaN!\n", i, j);
+                        //     elem->printStressStrain2();
+                        //     elem->printDisplacements();
+                        //     exit(1);
+                        // }
                     }
                 }
             }
