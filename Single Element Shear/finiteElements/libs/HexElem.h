@@ -32,8 +32,8 @@ enum directionEnum {
     directions
 };
 
-double rho = 2.7e3; // [kg/m^3]
-double E = 68e9;    // [Pa]
+double rho = 2.77e3; // [kg/m^3]
+double E = 71e9;    // [Pa]
 double nu = 0.33;
 
 /// Lame Coefficients
@@ -451,11 +451,22 @@ class hex8 : public HexElem<linear> {
         for (int i = 0; i < nHexDOFs; i++) {
             for (int j = 0; j < nHexDOFs; j++) {
                 double duidxj = 0;
-                for (int k = 0; k < elemNodes; k++) {
-                    duidxj += (dNdksi(k, ksi, eta, zeta) * this->J_inv[j][0] +
-                               dNdeta(k, ksi, eta, zeta) * this->J_inv[j][1] +
-                               dNdzeta(k, ksi, eta, zeta) * this->J_inv[j][2]) *
-                              this->d[k * nHexDOFs + i];
+                for (int node = 0; node < elemNodes; node++) {
+                    // duidxj += (dNdksi(node, ksi, eta, zeta) * this->J_inv[j][0] +
+                    //            dNdeta(node, ksi, eta, zeta) * this->J_inv[j][1] +
+                    //            dNdzeta(node, ksi, eta, zeta) * this->J_inv[j][2]) *
+                    //           this->d[node * nHexDOFs + i];
+                    switch (j) {
+                        case DOF_ux:
+                            duidxj += dNdksi(node, ksi, eta, zeta) * this->d[node * nHexDOFs + i];
+                            break;
+                        case DOF_uy:
+                            duidxj += dNdeta(node, ksi, eta, zeta) * this->d[node * nHexDOFs + i];
+                            break;
+                        case DOF_uz:
+                            duidxj += dNdzeta(node, ksi, eta, zeta) * this->d[node * nHexDOFs + i];
+                            break;
+                    }
                 }
 
                 // F_ij = δ_ij + du_i/dx_j
@@ -490,6 +501,9 @@ class hex8 : public HexElem<linear> {
         if (detF <= 1e-10) {
             printf("det{F} < 0\n");
             this->printDeformGradient();
+            exit(1);
+        } else if (isnan(detF)) {
+            printf("det{F} is NaN!\n");
             exit(1);
         }
     }
@@ -546,48 +560,46 @@ class hex8 : public HexElem<linear> {
                 this->B_L[i][j] = 0;
             }
         }
-        double dNdx[this->elemNodes];
-        double dNdy[this->elemNodes];
-        double dNdz[this->elemNodes];
+        double dNdx = 0;
+        double dNdy = 0;
+        double dNdz = 0;
 
         for (int node = 0; node < this->elemNodes; node++) {
-            dNdx[node] = this->dNdksi(node, ksi, eta, zeta) * this->J_inv[0][0];
-            dNdx[node] += this->dNdeta(node, ksi, eta, zeta) * this->J_inv[0][1];
-            dNdx[node] += this->dNdzeta(node, ksi, eta, zeta) * this->J_inv[0][2];
+            dNdx = this->dNdksi(node, ksi, eta, zeta) * this->J_inv[0][0];
+            dNdx += this->dNdeta(node, ksi, eta, zeta) * this->J_inv[0][1];
+            dNdx += this->dNdzeta(node, ksi, eta, zeta) * this->J_inv[0][2];
 
-            dNdy[node] = this->dNdksi(node, ksi, eta, zeta) * this->J_inv[1][0];
-            dNdy[node] += this->dNdeta(node, ksi, eta, zeta) * this->J_inv[1][1];
-            dNdy[node] += this->dNdzeta(node, ksi, eta, zeta) * this->J_inv[1][2];
+            dNdy = this->dNdksi(node, ksi, eta, zeta) * this->J_inv[1][0];
+            dNdy += this->dNdeta(node, ksi, eta, zeta) * this->J_inv[1][1];
+            dNdy += this->dNdzeta(node, ksi, eta, zeta) * this->J_inv[1][2];
 
-            dNdz[node] = this->dNdksi(node, ksi, eta, zeta) * this->J_inv[2][0];
-            dNdz[node] += this->dNdeta(node, ksi, eta, zeta) * this->J_inv[2][1];
-            dNdz[node] += this->dNdzeta(node, ksi, eta, zeta) * this->J_inv[2][2];
-        }
+            dNdz = this->dNdksi(node, ksi, eta, zeta) * this->J_inv[2][0];
+            dNdz += this->dNdeta(node, ksi, eta, zeta) * this->J_inv[2][1];
+            dNdz += this->dNdzeta(node, ksi, eta, zeta) * this->J_inv[2][2];
 
-        for (int node = 0; node < this->elemNodes; node++) {
-            this->B_L[DOF_ux][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_ux] * dNdx[node];
-            this->B_L[DOF_uy][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_uy] * dNdy[node];
-            this->B_L[DOF_uz][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_uz] * dNdz[node];
+            this->B_L[DOF_ux][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_ux] * dNdx;
+            this->B_L[DOF_uy][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_uy] * dNdy;
+            this->B_L[DOF_uz][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_uz] * dNdz;
 
-            this->B_L[DOF_ux][node * nHexDOFs + DOF_uy] = this->F[DOF_uy][DOF_ux] * dNdx[node];
-            this->B_L[DOF_uy][node * nHexDOFs + DOF_uy] = this->F[DOF_uy][DOF_uy] * dNdy[node];
-            this->B_L[DOF_uz][node * nHexDOFs + DOF_uy] = this->F[DOF_uy][DOF_uz] * dNdz[node];
+            this->B_L[DOF_ux][node * nHexDOFs + DOF_uy] = this->F[DOF_uy][DOF_ux] * dNdx;
+            this->B_L[DOF_uy][node * nHexDOFs + DOF_uy] = this->F[DOF_uy][DOF_uy] * dNdy;
+            this->B_L[DOF_uz][node * nHexDOFs + DOF_uy] = this->F[DOF_uy][DOF_uz] * dNdz;
 
-            this->B_L[DOF_ux][node * nHexDOFs + DOF_uz] = this->F[DOF_uz][DOF_ux] * dNdx[node];
-            this->B_L[DOF_uy][node * nHexDOFs + DOF_uz] = this->F[DOF_uz][DOF_uy] * dNdy[node];
-            this->B_L[DOF_uz][node * nHexDOFs + DOF_uz] = this->F[DOF_uz][DOF_uz] * dNdz[node];
+            this->B_L[DOF_ux][node * nHexDOFs + DOF_uz] = this->F[DOF_uz][DOF_ux] * dNdx;
+            this->B_L[DOF_uy][node * nHexDOFs + DOF_uz] = this->F[DOF_uz][DOF_uy] * dNdy;
+            this->B_L[DOF_uz][node * nHexDOFs + DOF_uz] = this->F[DOF_uz][DOF_uz] * dNdz;
 
-            this->B_L[DOF_ux + nHexDOFs][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_ux] * dNdy[node] + this->F[DOF_ux][DOF_uy] * dNdx[node];
-            this->B_L[DOF_uy + nHexDOFs][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_uy] * dNdz[node] + this->F[DOF_ux][DOF_uz] * dNdy[node];
-            this->B_L[DOF_uz + nHexDOFs][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_uz] * dNdx[node] + this->F[DOF_ux][DOF_ux] * dNdz[node];
+            this->B_L[DOF_ux + nHexDOFs][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_ux] * dNdy + this->F[DOF_ux][DOF_uy] * dNdx;
+            this->B_L[DOF_uy + nHexDOFs][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_uy] * dNdz + this->F[DOF_ux][DOF_uz] * dNdy;
+            this->B_L[DOF_uz + nHexDOFs][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_uz] * dNdx + this->F[DOF_ux][DOF_ux] * dNdz;
 
-            this->B_L[DOF_ux + nHexDOFs][node * nHexDOFs + DOF_uy] = this->F[DOF_uy][DOF_ux] * dNdy[node] + this->F[DOF_uy][DOF_uy] * dNdx[node];
-            this->B_L[DOF_uy + nHexDOFs][node * nHexDOFs + DOF_uy] = this->F[DOF_uy][DOF_uy] * dNdz[node] + this->F[DOF_uy][DOF_uz] * dNdy[node];
-            this->B_L[DOF_uz + nHexDOFs][node * nHexDOFs + DOF_uy] = this->F[DOF_uy][DOF_uz] * dNdx[node] + this->F[DOF_uy][DOF_ux] * dNdz[node];
+            this->B_L[DOF_ux + nHexDOFs][node * nHexDOFs + DOF_uy] = this->F[DOF_uy][DOF_ux] * dNdy + this->F[DOF_uy][DOF_uy] * dNdx;
+            this->B_L[DOF_uy + nHexDOFs][node * nHexDOFs + DOF_uy] = this->F[DOF_uy][DOF_uy] * dNdz + this->F[DOF_uy][DOF_uz] * dNdy;
+            this->B_L[DOF_uz + nHexDOFs][node * nHexDOFs + DOF_uy] = this->F[DOF_uy][DOF_uz] * dNdx + this->F[DOF_uy][DOF_ux] * dNdz;
 
-            this->B_L[DOF_ux + nHexDOFs][node * nHexDOFs + DOF_uz] = this->F[DOF_uz][DOF_ux] * dNdy[node] + this->F[DOF_uz][DOF_uy] * dNdx[node];
-            this->B_L[DOF_uy + nHexDOFs][node * nHexDOFs + DOF_uz] = this->F[DOF_uz][DOF_uy] * dNdz[node] + this->F[DOF_uz][DOF_uz] * dNdy[node];
-            this->B_L[DOF_uz + nHexDOFs][node * nHexDOFs + DOF_uz] = this->F[DOF_uz][DOF_uz] * dNdx[node] + this->F[DOF_uz][DOF_ux] * dNdz[node];
+            this->B_L[DOF_ux + nHexDOFs][node * nHexDOFs + DOF_uz] = this->F[DOF_uz][DOF_ux] * dNdy + this->F[DOF_uz][DOF_uy] * dNdx;
+            this->B_L[DOF_uy + nHexDOFs][node * nHexDOFs + DOF_uz] = this->F[DOF_uz][DOF_uy] * dNdz + this->F[DOF_uz][DOF_uz] * dNdy;
+            this->B_L[DOF_uz + nHexDOFs][node * nHexDOFs + DOF_uz] = this->F[DOF_uz][DOF_uz] * dNdx + this->F[DOF_uz][DOF_ux] * dNdz;
         }
     }
 
