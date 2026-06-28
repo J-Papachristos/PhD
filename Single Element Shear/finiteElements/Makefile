@@ -13,9 +13,10 @@ REM = --remesh
 
 
 main: main.cpp libs/HexElem.h
-	@echo "Changes found in sourcecode, compiling..."
 	rm -f $(wildcard *.exe)
+	@echo "Changes found in sourcecode, compiling..."
 	${GCC} main.cpp -o main.exe -O2 -I$(INC) -L$(LIB) -L$(LPK) $(FLAGS) -Wall
+	@echo "Done!"
 
 clean:
 	rm -f $(wildcard *.txt)
