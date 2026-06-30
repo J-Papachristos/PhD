@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "Helper.h"
+#include "Material.h"
+
 #define _USE_MATH_DEFINES
 
 #ifndef _HEX_LIB_
@@ -12,43 +15,6 @@
 #define NOT_PARSED -1 // pGroup for unparsed DOFs
 
 typedef double (*funcPtr)(double, double, double);
-
-/// Gauss-Quadrature
-#define GQ_POINTS 2
-double points_GQ[GQ_POINTS] = {-sqrt(1.0 / 3.0), +sqrt(1.0 / 3.0)}; // Gauss-Quadrature Isoparametric Points
-double w_GQ[GQ_POINTS] = {+1.0, +1.0};                              // Gauss-Quadrature Weights
-
-// #define GQ_POINTS 3
-// double points_GQ[GQ_POINTS] = {-sqrt(0.6), +0, +sqrt(0.6)};        // Gauss-Quadrature Isoparametric Points
-// double w_GQ[GQ_POINTS] = {+(5.0 / 9.0), +(8.0 / 9.0), +(5.0 / 9.0)}; // Gauss-Quadrature Weights
-
-enum directionEnum {
-    xx,
-    yy,
-    zz,
-    xy,
-    yz,
-    zx,
-    directions
-};
-
-double rho = 2.77e3; // [kg/m^3]
-double E = 71e9;    // [Pa]
-double nu = 0.33;
-
-/// Lame Coefficients
-double lambda = (E * nu) / ((1.0 + nu) * (1.0 - 2.0 * nu));
-double mu = E / (2.0 * (1.0 + nu));
-
-/// Elasticity Matrix [D]
-double D[directions][directions] = {
-    {lambda + 2 * mu, lambda, lambda, 0, 0, 0},
-    {lambda, lambda + 2 * mu, lambda, 0, 0, 0},
-    {lambda, lambda, lambda + 2 * mu, 0, 0, 0},
-    {0, 0, 0, mu, 0, 0},
-    {0, 0, 0, 0, mu, 0},
-    {0, 0, 0, 0, 0, mu},
-};
 
 enum hex8_node {
     hex8_1,
@@ -133,25 +99,9 @@ Coefficients
 |  [ζ] | -1 | -1 | -1 | -1 | +1 | +1 | +1 | +1 | -1 | -1 | +0 | -1 | +0 | -1 | +0 | +0 | +1 | +1 | +1 | +1 |
 */
 
-// double ksi_ind[serendipity] = {-1, +1, +1, -1, -1, +1, +1, -1, +0, -1, -1, +1, +1, +0, +1, -1, +0, -1, +1, +0};
-// double eta_ind[serendipity] = {-1, -1, +1, +1, -1, -1, +1, +1, -1, +0, -1, +0, -1, +1, +1, +1, -1, +0, +0, +1};
-// double zeta_ind[serendipity] = {-1, -1, -1, -1, +1, +1, +1, +1, -1, -1, +0, -1, +0, -1, +0, +0, +1, +1, +1, +1};
-
 double ksi_ind[serendipity] = {-1, +1, +1, -1, -1, +1, +1, -1, +0, +1, +0, -1, +0, +1, +0, -1, -1, +1, +1, -1};
 double eta_ind[serendipity] = {-1, -1, +1, +1, -1, -1, +1, +1, -1, +0, +1, +0, -1, +0, +1, +0, -1, -1, +1, +1};
 double zeta_ind[serendipity] = {-1, -1, -1, -1, +1, +1, +1, +1, -1, -1, -1, -1, +1, +1, +1, +1, +0, +0, +0, +0};
-
-class Point {
-  private:
-  public:
-    double x;
-    double y;
-    double z;
-
-    double ksi;
-    double eta;
-    double zeta;
-};
 
 template <int elemNodes>
 class HexElem {
