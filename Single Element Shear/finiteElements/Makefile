@@ -12,7 +12,7 @@ REM = --remesh
 #-l amd -l colamd -l camd -l ccolamd -l suitesparseconfig -l blas -l lapack
 
 
-main: main.cpp libs/HexElem.h
+main: main.cpp libs/HexElem.h libs/Helper.h libs/Material.h
 	rm -f $(wildcard *.exe)
 	@echo "Changes found in sourcecode, compiling..."
 	${GCC} main.cpp -o main.exe -O2 -I$(INC) -L$(LIB) -L$(LPK) $(FLAGS) -Wall
