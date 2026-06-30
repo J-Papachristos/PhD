@@ -616,12 +616,12 @@ class hex8 : public HexElem<linear> {
         this->eps_GL_v[nHexDOFs + DOF_uz] = 2.0 * this->eps_GL[0][2];
     }
 
-    void calculateStress() {
+    void calculateStress(Material mat) {
         this->calculateStrain();
         for (int dir = 0; dir < directions; dir++) {
             this->sigma_v[dir] = 0;
             for (int cols = 0; cols < directions; cols++) {
-                this->sigma_v[dir] += D[dir][cols] * this->epsilon_v[cols];
+                this->sigma_v[dir] += mat.D[dir][cols] * this->epsilon_v[cols];
             }
         }
 
@@ -639,13 +639,13 @@ class hex8 : public HexElem<linear> {
 
     /// @brief Calculates the 2nd Piola Stress
     /// Matrix τ(3x3) = |F| * F^{-1} * σ * F^{-T}
-    void calculatePiola2(double ksi, double eta, double zeta) {
+    void calculatePiola2(double ksi, double eta, double zeta, Material mat) {
         this->calculateGreenLagrangeStrain(ksi, eta, zeta);
 
         for (int i = 0; i < directions; i++) {
             this->S2_v[i] = 0;
             for (int j = 0; j < directions; j++) {
-                this->S2_v[i] += D[i][j] * this->eps_GL_v[j];
+                this->S2_v[i] += mat.D[i][j] * this->eps_GL_v[j];
             }
         }
 
