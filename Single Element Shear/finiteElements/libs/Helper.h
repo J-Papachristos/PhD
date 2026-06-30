@@ -39,4 +39,4 @@ class Point {
     double zeta;
 };
 
-#endif _HELPER_LIB_
+#endif // !_HELPER_LIB_
