@@ -15,7 +15,7 @@
 /// @param elem Element of type hexType
 /// @param k_local Pointer to local stiffness matrix
 template <typename hexType>
-void localStiff(hexType *elem, double **k_local);
+void localStiff(hexType *elem, double **k_local, Material mat);
 
 /// @brief Calculates the non-linear local stiffness
 /// matrix component [k_NL] for the element elem
@@ -23,7 +23,7 @@ void localStiff(hexType *elem, double **k_local);
 /// @param elem Element of type hexType
 /// @param k_local_NL Pointer to non-linear local stiffness matrix
 template <typename hexType>
-void localStiff_NL(hexType *elem, double **k_local_NL);
+void localStiff_NL(hexType *elem, double **k_local_NL, Material mat);
 
 /// @brief Calculates the Internal Force component of the
 /// residual of the non-linear stiffness equation
@@ -31,7 +31,7 @@ void localStiff_NL(hexType *elem, double **k_local_NL);
 /// @param elem Element of type hexType
 /// @param Fint Internal Force Vector
 template <typename hexType>
-void intForce(hexType *elem, double *Fint);
+void intForce(hexType *elem, double *Fint, Material mat);
 
 /// @brief Calculates the local force for the given node
 /// of the element elem
@@ -97,6 +97,15 @@ int main(int argc, char const *argv[]) {
             }
         }
     }
+
+    // Read from a file at some point (!), Aluminum
+    double rho = 2.77e3; // [kg/m^3]
+    double E = 71e9;     // [Pa]
+    double nu = 0.33;
+
+    Material mat;
+    mat.setPhysical(rho);
+    mat.setLinearElastic(E, nu);
 
     int nBodies = 1;
     Body<hex8> *bodyArray = (Body<hex8> *) malloc(nBodies * sizeof(Body<hex8>));
@@ -317,11 +326,11 @@ int main(int argc, char const *argv[]) {
                 }
 
                 // Calculate Local Stiffness Matrix
-                localStiff(&elemArray[elem], k_local);
-                localStiff_NL(&elemArray[elem], k_local_NL);
+                localStiff(&elemArray[elem], k_local, mat);
+                localStiff_NL(&elemArray[elem], k_local_NL, mat);
 
                 // Calculate Local Internal Forces
-                intForce(&elemArray[elem], Fint);
+                intForce(&elemArray[elem], Fint, mat);
 
                 // Asign Local to Global
                 for (int i = 0; i < elemNodes; i++) {
@@ -517,7 +526,7 @@ int main(int argc, char const *argv[]) {
     if (calcStressStrain) {
         FILE *fp_stress = fopen("stress.txt", "w");
         for (int elem = 0; elem < nElems; elem++) {
-            elemArray[elem].calculateStress();
+            elemArray[elem].calculateStress(mat);
             for (int dir = 0; dir < directions; dir++) {
                 fprintf(fp_stress, "%lf,", elemArray[elem].sigma_v[dir]);
             }
@@ -556,7 +565,7 @@ void addElem(cholmod_triplet *T, int row, int col, double data) {
 }
 
 template <typename hexType>
-void localStiff(hexType *elem, double **k_local) {
+void localStiff(hexType *elem, double **k_local, Material mat) {
     int elemNodes = elem->getElemNodes();
 
     /// Gauss Quadrature
@@ -571,7 +580,7 @@ void localStiff(hexType *elem, double **k_local) {
                     for (int col = 0; col < directions; col++) {
                         BT_D[col] = 0;
                         for (int row = 0; row < directions; row++) {
-                            BT_D[col] += elem->B_L[row][i] * D[row][col];
+                            BT_D[col] += elem->B_L[row][i] * mat.D[row][col];
                         }
                     }
                     for (int j = 0; j < nHexDOFs * elemNodes; j++) {
@@ -589,7 +598,7 @@ void localStiff(hexType *elem, double **k_local) {
 }
 
 template <typename hexType>
-void localStiff_NL(hexType *elem, double **k_local_NL) {
+void localStiff_NL(hexType *elem, double **k_local_NL, Material mat) {
     int elemNodes = elem->getElemNodes();
 
     /// Gauss Quadrature
@@ -598,7 +607,7 @@ void localStiff_NL(hexType *elem, double **k_local_NL) {
             for (int iZeta = 0; iZeta < GQ_POINTS; iZeta++) {
                 double weight = w_GQ[iKsi] * w_GQ[iEta] * w_GQ[iZeta];
                 elem->getNonLinearDeformMatrix(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
-                elem->calculatePiola2(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
+                elem->calculatePiola2(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta], mat);
 
                 for (int i = 0; i < nHexDOFs * elemNodes; i++) {
                     for (int j = 0; j < nHexDOFs * elemNodes; j++) {
@@ -627,7 +636,7 @@ void localStiff_NL(hexType *elem, double **k_local_NL) {
 }
 
 template <typename hexType>
-void intForce(hexType *elem, double *Fint) {
+void intForce(hexType *elem, double *Fint, Material mat) {
     int elemNodes = elem->getElemNodes();
 
     /// Gauss Quadrature
@@ -636,7 +645,7 @@ void intForce(hexType *elem, double *Fint) {
             for (int iZeta = 0; iZeta < GQ_POINTS; iZeta++) {
                 double weight = w_GQ[iKsi] * w_GQ[iEta] * w_GQ[iZeta];
                 elem->getLinearDeformMatrix(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
-                elem->calculatePiola2(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
+                elem->calculatePiola2(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta], mat);
 
                 for (int i = 0; i < nHexDOFs * elemNodes; i++) {
                     for (int j = 0; j < directions; j++) {
