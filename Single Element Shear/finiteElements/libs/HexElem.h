@@ -356,20 +356,22 @@ class hex8 : public HexElem<linear> {
             case neo_hookean:
                 for (int i = 0; i < nHexDOFs; i++) {
                     for (int j = i; j < nHexDOFs; j++) {
-                        int d_ij = delta(i, j);
+                        double C_inv_ij = this->C_inv[i][j];
                         for (int k = 0; k < nHexDOFs; k++) {
-                            int d_ik = delta(i, k);
-                            int d_jk = delta(i, k);
+                            double C_ik = this->C[i][k];
+                            double C_jk = this->C[j][k];
                             for (int l = k; l < nHexDOFs; l++) {
-                                int d_il = delta(i, l);
-                                int d_jl = delta(j, l);
-                                int d_kl = delta(k, l);
+                                double C_il = this->C[i][l];
+                                double C_jl = this->C[j][l];
+                                double C_inv_kl = this->C_inv[k][l];
+
+                                double C1xC1_ijkl = C_inv_ij * C_inv_kl;
+                                double I_ijkl = 0.5 * ((C_ik * C_jl) + (C_il * C_jk));
 
                                 int ind_i = fourthOrder2matrix(i, j);
                                 int ind_j = fourthOrder2matrix(k, l);
-
-                                this->D[ind_i][ind_j] = mat.lambda * d_ij * d_kl +
-                                                        mat.mu * ((d_ik * d_jl) + (d_il * d_jk));
+                                this->D[ind_i][ind_j] = mat.lambda * C1xC1_ijkl +
+                                                        2.0 * (mat.mu - mat.lambda * log(this->detC)) * I_ijkl;
                             }
                         }
                     }
