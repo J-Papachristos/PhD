@@ -264,15 +264,6 @@ class hex8 : public HexElem<linear> {
         }
     }
 
-    void calcD(Material mat) {
-        for (int i = 0; i < directions; i++) {
-            for (int j = 0; j < directions; j++) {
-                (i < directions / 2 && j < directions / 2) ? this->D[i][j] = mat.lambda : this->D[i][j] = 0;
-            }
-            (i < directions / 2) ? this->D[i][i] = mat.lambda + 2 * mat.mu : this->D[i][i] = mat.mu;
-        }
-    }
-
     /// @brief Calculates the Deformation Gradient [F]
     /// @param ksi  Isoparametric Coordinate ξ
     /// @param eta  Isoparametric Coordinate η
@@ -335,6 +326,56 @@ class hex8 : public HexElem<linear> {
 
         // Calculate Inverse Cauchy
         inverse3(this->C, this->C_inv, &this->detC);
+    }
+
+    /// @brief Calculates the Linear Elasticity Matrix
+    /// @param mat Material Definition
+    void getElasticityMatrix(Material mat) {
+        if (mat.getType() != linear_elastic) {
+            printf("Material is not defined as Linear Elastic but is assumed to be!\n");
+            exit(1);
+        }
+
+        for (int i = 0; i < directions; i++) {
+            for (int j = 0; j < directions; j++) {
+                (i < directions / 2 && j < directions / 2) ? this->D[i][j] = mat.lambda : this->D[i][j] = 0;
+            }
+            (i < directions / 2) ? this->D[i][i] = mat.lambda + 2 * mat.mu : this->D[i][i] = mat.mu;
+        }
+    }
+
+    /// @brief Calculates the Tangential Elasticity Matrix for Non-Linear Materials
+    /// @param mat Material Definition
+    /// @param ksi  Isoparametric Coordinate ξ
+    /// @param eta  Isoparametric Coordinate η
+    /// @param zeta Isoparametric Coordinate ζ
+    void getElasticityMatrix(Material mat, double ksi, double eta, double zeta) {
+        this->getRightCauchy(ksi, eta, zeta);
+        switch (mat.getType()) {
+            default:
+            case neo_hookean:
+                for (int i = 0; i < nHexDOFs; i++) {
+                    for (int j = i; j < nHexDOFs; j++) {
+                        int d_ij = delta(i, j);
+                        for (int k = 0; k < nHexDOFs; k++) {
+                            int d_ik = delta(i, k);
+                            int d_jk = delta(i, k);
+                            for (int l = k; l < nHexDOFs; l++) {
+                                int d_il = delta(i, l);
+                                int d_jl = delta(j, l);
+                                int d_kl = delta(k, l);
+
+                                int ind_i = fourthOrder2matrix(i, j);
+                                int ind_j = fourthOrder2matrix(k, l);
+
+                                this->D[ind_i][ind_j] = mat.lambda * d_ij * d_kl +
+                                                        mat.mu * ((d_ik * d_jl) + (d_il * d_jk));
+                            }
+                        }
+                    }
+                }
+                break;
+        }
     }
 
     /// @brief Calculates the Linear Deformation Matrix [B_L]
