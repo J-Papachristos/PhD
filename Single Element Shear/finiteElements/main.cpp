@@ -71,7 +71,7 @@ int main(int argc, char const *argv[]) {
                     i++;
                     continue;
                 } else if (!strcmp(argv[i + 1], "hex20")) {
-                    elemNodes = serendipity;
+                    elemNodes = quadratic;
                     typeArgPos = i + 1;
                     i++;
                     continue;
@@ -105,7 +105,8 @@ int main(int argc, char const *argv[]) {
 
     Material mat;
     mat.setPhysical(rho);
-    mat.setLinearElastic(E, nu);
+    mat.setElasticity(linear_elastic, E, nu);
+    // mat.calcElasticityMatrix();
 
     int nBodies = 1;
     Body<hex8> *bodyArray = (Body<hex8> *) malloc(nBodies * sizeof(Body<hex8>));
@@ -324,6 +325,7 @@ int main(int argc, char const *argv[]) {
                     }
                     Fint[i] = 0;
                 }
+                elemArray[elem].calcD(mat);
 
                 // Calculate Local Stiffness Matrix
                 localStiff(&elemArray[elem], k_local, mat);
@@ -580,7 +582,7 @@ void localStiff(hexType *elem, double **k_local, Material mat) {
                     for (int col = 0; col < directions; col++) {
                         BT_D[col] = 0;
                         for (int row = 0; row < directions; row++) {
-                            BT_D[col] += elem->B_L[row][i] * mat.D[row][col];
+                            BT_D[col] += elem->B_L[row][i] * elem->D[row][col];
                         }
                     }
                     for (int j = 0; j < nHexDOFs * elemNodes; j++) {
