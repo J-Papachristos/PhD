@@ -122,6 +122,7 @@ class Point {
     double zeta;
 };
 
+/// @brief Helper Function to Invert a 3x3 Matrix A
 void inverse3(double A[3][3], double A_inv[3][3], double *detA) {
     // Calculate Inverse
     double _A_ = +((A[1][1] * A[2][2]) - (A[1][2] * A[2][1]));
@@ -146,6 +147,25 @@ void inverse3(double A[3][3], double A_inv[3][3], double *detA) {
         A_inv[1][2] = _H_ / (*detA);
         A_inv[2][2] = _I_ / (*detA);
     }
+}
+
+/// @brief Kronecker Delta
+int delta(int i, int j) {
+    return (i == j) ? 1 : 0;
+}
+
+/// @brief Helper Function to convert from 4th
+/// Order Minor-Symmetric Tensor to a 6x6 Matrix
+/// (Vectorization Notation)
+int fourthOrder2matrix(int i, int j) {
+    if (i == j)
+        return i;
+    else if (i + j == xx + yy)
+        return nHexDOFs + DOF_ux;
+    else if (i + j == yy + zz)
+        return nHexDOFs + DOF_uy;
+    else if (i + j == zz + xx)
+        return nHexDOFs + DOF_uz;
 }
 
 #endif // !_HELPER_LIB_
