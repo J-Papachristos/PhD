@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <stdarg.h>
+
 #include "Helper.h"
 
 #define _USE_MATH_DEFINES
@@ -10,25 +12,23 @@
 #ifndef _MAT_LIB_
 #define _MAT_LIB_
 
-/// Elasticity Matrix [D]
-// double D[directions][directions] = {
-//     {lambda + 2 * mu, lambda, lambda, 0, 0, 0},
-//     {lambda, lambda + 2 * mu, lambda, 0, 0, 0},
-//     {lambda, lambda, lambda + 2 * mu, 0, 0, 0},
-//     {0, 0, 0, mu, 0, 0},
-//     {0, 0, 0, 0, mu, 0},
-//     {0, 0, 0, 0, 0, mu},
-// };
-
 enum materialType {
     linear_elastic,
     neo_hookean,
+    mooney_rivlin,
+    ogden,
+    yeoh,
     matTypes
 };
 
 class Material {
   private:
-    int type;
+    int type; // Material Model Type
+
+    /// @brief Sets the Material Model
+    void setType(int type) {
+        this->type = type;
+    }
 
   public:
     /// Physical Properties
@@ -41,10 +41,13 @@ class Material {
     // Lame Parameters
     double lambda, mu;
 
-    /// Elasticity Matrix [D]
-    double D[directions][directions];
-
     /// Methods
+
+    /// @brief Gets the Model Type of the Material
+    /// @return Material Model Type
+    int getType() {
+        return this->type;
+    }
 
     /// @brief Sets the Physical Properties of the Material
     /// @param rho Density [kg/m^3]
@@ -52,21 +55,32 @@ class Material {
         this->rho = rho;
     }
 
-    /// @brief Sets the Linear Elastic Parameters and Calculates the Lame Parameters
-    /// @param E Young's Modulus [Pa]
-    /// @param nu Poisson's Ratio [-]
-    void setLinearElastic(double E, double nu) {
-        this->E = E;
-        this->nu = nu;
+    /// @brief Sets the Elasticity Parameters of the Material, depending on the Model Type
+    /// @param type Model Type
+    /// @param
+    void setElasticity(int type, ...) {
+        this->setType(type);
+        va_list args;
 
-        this->lambda = (E * nu) / ((1.0 + nu) * (1.0 - 2.0 * nu));
-        this->mu = E / (2.0 * (1.0 + nu));
+        switch (type) {
+            default:
+            case linear_elastic:
+                va_start(args, type);
 
-        for (int i = 0; i < directions; i++) {
-            for (int j = 0; j < directions; j++) {
-                (i < directions / 2 && j < directions / 2) ? this->D[i][j] = this->lambda : this->D[i][j] = 0;
-            }
-            (i < directions / 2) ? this->D[i][i] = this->lambda + 2 * this->mu : this->D[i][i] = this->mu;
+                this->E = va_arg(args, double);
+                this->nu = va_arg(args, double);
+                va_end(args);
+
+                this->lambda = (E * nu) / ((1.0 + nu) * (1.0 - 2.0 * nu));
+                this->mu = E / (2.0 * (1.0 + nu));
+                break;
+            case neo_hookean:
+                va_start(args, type);
+
+                this->lambda = va_arg(args, double);
+                this->mu = va_arg(args, double);
+                va_end(args);
+                break;
         }
     }
 };
