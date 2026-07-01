@@ -16,92 +16,9 @@
 
 typedef double (*funcPtr)(double, double, double);
 
-enum hex8_node {
-    hex8_1,
-    hex8_2,
-    hex8_3,
-    hex8_4,
-    hex8_5,
-    hex8_6,
-    hex8_7,
-    hex8_8,
-    linear
-};
-
-enum hex20_node {
-    hex20_1,
-    hex20_2,
-    hex20_3,
-    hex20_4,
-    hex20_5,
-    hex20_6,
-    hex20_7,
-    hex20_8,
-    hex20_9,
-    hex20_10,
-    hex20_11,
-    hex20_12,
-    hex20_13,
-    hex20_14,
-    hex20_15,
-    hex20_16,
-    hex20_17,
-    hex20_18,
-    hex20_19,
-    hex20_20,
-    serendipity
-};
-
-enum hex_nodeDOF {
-    DOF_ux,
-    DOF_uy,
-    DOF_uz,
-    nHexDOFs
-};
-
-/*
-3D Linear Hex Element (Hex8) :
-            z/ζ
-             |
-      {5}---------{8}
-      /|     |    /|
-     / |     |   / |
-    /  |     +--/ -|--y/η
-  {6}--+------{7}  |
-   |  {1}--/---+--{4}
-   |  /   /    |  /
-   | /  x/ξ    | /
-   |/          |/
-  {2}---------{3}
-
-3D Quadratic Hex Element (Hex20) :
-          z/ζ
-           |
-     5-----18----8
-    /|     |    /|
-   17|     |   20|
-  /  11    |  /  16
- 6---|-19----7   |
- |   |     +-|---|--->y/η
- |   1----/10|---4
- 13 /    /   15 /
- | 9    /    | 14
- |/    /     |/
- 2----/12----3
-     /
-   x/ξ
-
-Coefficients
-|------|-Corner Nodes ( Same for Hex8 Element)-|-[ξ]--[η]--[ζ]--[η]--[ζ]--[ξ]--[ζ]--[ζ]--[ξ]--[η]--[η]--[ξ]|
-|[Node]|[01]|[02]|[03]|[04]|[05]|[06]|[07]|[08]|[09]|[10]|[11]|[12]|[13]|[14]|[15]|[16]|[17]|[18]|[19]|[20]|
-|  [ξ] | -1 | +1 | +1 | -1 | -1 | +1 | +1 | -1 | +0 | -1 | -1 | +1 | +1 | +0 | +1 | -1 | +0 | -1 | +1 | +0 |
-|  [η] | -1 | -1 | +1 | +1 | -1 | -1 | +1 | +1 | -1 | +0 | -1 | +0 | -1 | +1 | +1 | +1 | -1 | +0 | +0 | +1 |
-|  [ζ] | -1 | -1 | -1 | -1 | +1 | +1 | +1 | +1 | -1 | -1 | +0 | -1 | +0 | -1 | +0 | +0 | +1 | +1 | +1 | +1 |
-*/
-
-double ksi_ind[serendipity] = {-1, +1, +1, -1, -1, +1, +1, -1, +0, +1, +0, -1, +0, +1, +0, -1, -1, +1, +1, -1};
-double eta_ind[serendipity] = {-1, -1, +1, +1, -1, -1, +1, +1, -1, +0, +1, +0, -1, +0, +1, +0, -1, -1, +1, +1};
-double zeta_ind[serendipity] = {-1, -1, -1, -1, +1, +1, +1, +1, -1, -1, -1, -1, +1, +1, +1, +1, +0, +0, +0, +0};
+double ksi_ind[quadratic] = {-1, +1, +1, -1, -1, +1, +1, -1, +0, +1, +0, -1, +0, +1, +0, -1, -1, +1, +1, -1};
+double eta_ind[quadratic] = {-1, -1, +1, +1, -1, -1, +1, +1, -1, +0, +1, +0, -1, +0, +1, +0, -1, -1, +1, +1};
+double zeta_ind[quadratic] = {-1, -1, -1, -1, +1, +1, +1, +1, -1, -1, -1, -1, +1, +1, +1, +1, +0, +0, +0, +0};
 
 template <int elemNodes>
 class HexElem {
@@ -115,10 +32,6 @@ class HexElem {
     double x[elemNodes]; // Real Coordinate x per Node (Array)
     double y[elemNodes]; // Real Coordinate y per Node (Array)
     double z[elemNodes]; // Real Coordinate z per Node (Array)
-
-    double ux_dd[elemNodes]; // x-Axis Nodal Acceleration (Array)
-    double uy_dd[elemNodes]; // y-Axis Nodal Acceleration (Array)
-    double uz_dd[elemNodes]; // z-Axis Nodal Acceleration (Array)
 
     int nodeIndex[elemNodes];  // Node Indices (Array)
     int pGroupElem[elemNodes]; // Node Group Indices (Array)
@@ -141,6 +54,9 @@ class HexElem {
     double C[nHexDOFs][nHexDOFs];     // Right Cauchy-Green Strain Tensor (3x3)
     double C_inv[nHexDOFs][nHexDOFs]; // Inverse Right Cauchy-Green Strain Tensor (3x3)
     double detC = 0;                  // Right Cauchy-Green Strain Tensor Determinant
+
+    // Elasticity Matrix
+    double D[directions][directions];
 
     // Nodal Displacement Vector [u1_x, u1_y, u1_z, ..., un_x, un_y, un_z]
     double d[nHexDOFs * elemNodes];
@@ -197,29 +113,6 @@ class HexElem {
         return this->nelem;
     }
 
-    /// @brief Sets Element Values {ux_dd,uy_dd,uz_dd} to 0
-    void zeroElementValues() {
-        for (int i = 0; i < elemNodes; i++) {
-            this->ux_dd[i] = 0;
-            this->uy_dd[i] = 0;
-            this->uz_dd[i] = 0;
-        }
-    }
-
-    /// @brief Sets Element Values {u_x,u_y,u_z}
-    /// @param u_x  Matrix (Size elemNodes) of u_x values
-    /// @param u_y Matrix (Size elemNodes) of u_y values
-    /// @param u_z  Matrix (Size elemNodes) of u_z values
-    void setElementValues(double ux_dd[elemNodes],
-                          double uy_dd[elemNodes],
-                          double uz_dd[elemNodes]) {
-        for (int i = 0; i < elemNodes; i++) {
-            this->ux_dd[i] = ux_dd[i];
-            this->uy_dd[i] = uy_dd[i];
-            this->uz_dd[i] = uz_dd[i];
-        }
-    }
-
     /// @brief Helper Function, Prints 3x3 [J]
     void printJacobian() {
         printf("|%+.8lf %+.8lf %+.8lf|\n", this->J[0][0], this->J[0][1], this->J[0][2]);
@@ -238,7 +131,7 @@ class HexElem {
 
 class hex8 : public HexElem<linear> {
   private:
-    int elemNodes = linear; // Order of Element (linear,serendipity)
+    int elemNodes = linear; // Order of Element (linear,quadratic)
   public:
     using HexElem<linear>::HexElem;
 
@@ -317,28 +210,7 @@ class hex8 : public HexElem<linear> {
         this->J[2][0] = J_31, this->J[2][1] = J_32, this->J[2][2] = J_33;
 
         // Calculate Inverse Jacobian
-        double _A_ = +((J_22 * J_33) - (J_23 * J_32));
-        double _B_ = -((J_21 * J_33) - (J_23 * J_31));
-        double _C_ = +((J_21 * J_32) - (J_22 * J_31));
-        double _D_ = -((J_12 * J_33) - (J_13 * J_32));
-        double _E_ = +((J_11 * J_33) - (J_13 * J_31));
-        double _F_ = -((J_11 * J_32) - (J_12 * J_31));
-        double _G_ = +((J_12 * J_23) - (J_13 * J_22));
-        double _H_ = -((J_11 * J_23) - (J_13 * J_21));
-        double _I_ = +((J_11 * J_22) - (J_12 * J_21));
-
-        this->detJ = J_11 * _A_ + J_12 * _B_ + J_13 * _C_;
-        if (fabs(detJ) >= 1e-10) {
-            this->J_inv[0][0] = _A_ / detJ;
-            this->J_inv[1][0] = _B_ / detJ;
-            this->J_inv[2][0] = _C_ / detJ;
-            this->J_inv[0][1] = _D_ / detJ;
-            this->J_inv[1][1] = _E_ / detJ;
-            this->J_inv[2][1] = _F_ / detJ;
-            this->J_inv[0][2] = _G_ / detJ;
-            this->J_inv[1][2] = _H_ / detJ;
-            this->J_inv[2][2] = _I_ / detJ;
-        }
+        inverse3(this->J, this->J_inv, &this->detJ);
     }
 
     double getVolume() {
@@ -392,6 +264,15 @@ class hex8 : public HexElem<linear> {
         }
     }
 
+    void calcD(Material mat) {
+        for (int i = 0; i < directions; i++) {
+            for (int j = 0; j < directions; j++) {
+                (i < directions / 2 && j < directions / 2) ? this->D[i][j] = mat.lambda : this->D[i][j] = 0;
+            }
+            (i < directions / 2) ? this->D[i][i] = mat.lambda + 2 * mat.mu : this->D[i][i] = mat.mu;
+        }
+    }
+
     /// @brief Calculates the Deformation Gradient [F]
     /// @param ksi  Isoparametric Coordinate ξ
     /// @param eta  Isoparametric Coordinate η
@@ -425,28 +306,7 @@ class hex8 : public HexElem<linear> {
         }
 
         // Calculate Inverse Deformation Gradient
-        double _A_ = +((this->F[1][1] * this->F[2][2]) - (this->F[1][2] * this->F[2][1]));
-        double _B_ = -((this->F[1][0] * this->F[2][2]) - (this->F[1][2] * this->F[2][0]));
-        double _C_ = +((this->F[1][0] * this->F[2][1]) - (this->F[1][1] * this->F[2][0]));
-        double _D_ = -((this->F[0][1] * this->F[2][2]) - (this->F[0][2] * this->F[2][1]));
-        double _E_ = +((this->F[0][0] * this->F[2][2]) - (this->F[0][2] * this->F[2][0]));
-        double _F_ = -((this->F[0][0] * this->F[2][1]) - (this->F[0][1] * this->F[2][0]));
-        double _G_ = +((this->F[0][1] * this->F[1][2]) - (this->F[0][2] * this->F[1][1]));
-        double _H_ = -((this->F[0][0] * this->F[1][2]) - (this->F[0][2] * this->F[1][0]));
-        double _I_ = +((this->F[0][0] * this->F[1][1]) - (this->F[0][1] * this->F[1][0]));
-
-        this->detF = this->F[0][0] * _A_ + this->F[0][1] * _B_ + this->F[0][2] * _C_;
-        if (fabs(detF) >= 1e-10) {
-            this->F_inv[0][0] = _A_ / detF;
-            this->F_inv[1][0] = _B_ / detF;
-            this->F_inv[2][0] = _C_ / detF;
-            this->F_inv[0][1] = _D_ / detF;
-            this->F_inv[1][1] = _E_ / detF;
-            this->F_inv[2][1] = _F_ / detF;
-            this->F_inv[0][2] = _G_ / detF;
-            this->F_inv[1][2] = _H_ / detF;
-            this->F_inv[2][2] = _I_ / detF;
-        }
+        inverse3(this->F, this->F_inv, &this->detF);
 
         if (detF <= 1e-10) {
             printf("det{F} < 0\n");
@@ -474,28 +334,7 @@ class hex8 : public HexElem<linear> {
         }
 
         // Calculate Inverse Cauchy
-        double _A_ = +((this->C[1][1] * this->C[2][2]) - (this->C[1][2] * this->C[2][1]));
-        double _B_ = -((this->C[1][0] * this->C[2][2]) - (this->C[1][2] * this->C[2][0]));
-        double _C_ = +((this->C[1][0] * this->C[2][1]) - (this->C[1][1] * this->C[2][0]));
-        double _D_ = -((this->C[0][1] * this->C[2][2]) - (this->C[0][2] * this->C[2][1]));
-        double _E_ = +((this->C[0][0] * this->C[2][2]) - (this->C[0][2] * this->C[2][0]));
-        double _F_ = -((this->C[0][0] * this->C[2][1]) - (this->C[0][1] * this->C[2][0]));
-        double _G_ = +((this->C[0][1] * this->C[1][2]) - (this->C[0][2] * this->C[1][1]));
-        double _H_ = -((this->C[0][0] * this->C[1][2]) - (this->C[0][2] * this->C[1][0]));
-        double _I_ = +((this->C[0][0] * this->C[1][1]) - (this->C[0][1] * this->C[1][0]));
-
-        this->detC = this->C[0][0] * _A_ + this->C[0][1] * _B_ + this->C[0][2] * _C_;
-        if (fabs(detC) >= 1e-10) {
-            this->C_inv[0][0] = _A_ / detC;
-            this->C_inv[1][0] = _B_ / detC;
-            this->C_inv[2][0] = _C_ / detC;
-            this->C_inv[0][1] = _D_ / detC;
-            this->C_inv[1][1] = _E_ / detC;
-            this->C_inv[2][1] = _F_ / detC;
-            this->C_inv[0][2] = _G_ / detC;
-            this->C_inv[1][2] = _H_ / detC;
-            this->C_inv[2][2] = _I_ / detC;
-        }
+        inverse3(this->C, this->C_inv, &this->detC);
     }
 
     /// @brief Calculates the Linear Deformation Matrix [B_L]
@@ -621,7 +460,7 @@ class hex8 : public HexElem<linear> {
         for (int dir = 0; dir < directions; dir++) {
             this->sigma_v[dir] = 0;
             for (int cols = 0; cols < directions; cols++) {
-                this->sigma_v[dir] += mat.D[dir][cols] * this->epsilon_v[cols];
+                this->sigma_v[dir] += this->D[dir][cols] * this->epsilon_v[cols];
             }
         }
 
@@ -645,7 +484,7 @@ class hex8 : public HexElem<linear> {
         for (int i = 0; i < directions; i++) {
             this->S2_v[i] = 0;
             for (int j = 0; j < directions; j++) {
-                this->S2_v[i] += mat.D[i][j] * this->eps_GL_v[j];
+                this->S2_v[i] += this->D[i][j] * this->eps_GL_v[j];
             }
         }
 
@@ -697,11 +536,11 @@ class hex8 : public HexElem<linear> {
     }
 };
 
-class hex20 : public HexElem<serendipity> {
+class hex20 : public HexElem<quadratic> {
   private:
   public:
-    int elemNodes = serendipity; // Order of Element
-    using HexElem<serendipity>::HexElem;
+    int elemNodes = quadratic; // Order of Element
+    using HexElem<quadratic>::HexElem;
 
     /// @brief Shape Functions for hex20 Element
     /// @param i Selection of Shape Function
@@ -1128,7 +967,7 @@ class hex20 : public HexElem<serendipity> {
         double J_31 = +0, J_32 = +0, J_33 = 0;
 
         // Calculate Jacobian
-        for (int i = 0; i < serendipity; i++) {
+        for (int i = 0; i < quadratic; i++) {
             J_11 += dNdksi(i, ksi, eta, zeta) * x[i];
             J_21 += dNdeta(i, ksi, eta, zeta) * x[i];
             J_31 += dNdzeta(i, ksi, eta, zeta) * x[i];
@@ -1146,28 +985,7 @@ class hex20 : public HexElem<serendipity> {
         this->J[2][0] = J_31, this->J[2][1] = J_32, this->J[2][2] = J_33;
 
         // Calculate Inverse Jacobian
-        double A = +((J_22 * J_33) - (J_23 * J_32));
-        double B_L = -((J_21 * J_33) - (J_23 * J_31));
-        double C = +((J_21 * J_32) - (J_22 * J_31));
-        double D = -((J_12 * J_33) - (J_13 * J_32));
-        double E = +((J_11 * J_33) - (J_13 * J_31));
-        double F = -((J_11 * J_32) - (J_12 * J_31));
-        double G = +((J_12 * J_23) - (J_13 * J_22));
-        double H = -((J_11 * J_23) - (J_13 * J_21));
-        double I = +((J_11 * J_22) - (J_12 * J_21));
-
-        this->detJ = J_11 * A + J_12 * B_L + J_13 * C;
-        if (fabs(detJ) >= 1e-10) {
-            this->J_inv[0][0] = A / detJ;
-            this->J_inv[1][0] = B_L / detJ;
-            this->J_inv[2][0] = C / detJ;
-            this->J_inv[0][1] = D / detJ;
-            this->J_inv[1][1] = E / detJ;
-            this->J_inv[2][1] = F / detJ;
-            this->J_inv[0][2] = G / detJ;
-            this->J_inv[1][2] = H / detJ;
-            this->J_inv[2][2] = I / detJ;
-        }
+        inverse3(this->J, this->J_inv, &this->detJ);
     }
 
     double getVolume() {
