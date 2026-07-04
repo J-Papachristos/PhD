@@ -274,25 +274,25 @@ class hex8 : public HexElem<linear> {
             for (int j = 0; j < nHexDOFs; j++) {
                 double duidxj = 0;
                 for (int node = 0; node < elemNodes; node++) {
-                    // duidxj += (dNdksi(node, ksi, eta, zeta) * this->J_inv[j][0] +
-                    //            dNdeta(node, ksi, eta, zeta) * this->J_inv[j][1] +
-                    //            dNdzeta(node, ksi, eta, zeta) * this->J_inv[j][2]) *
-                    //           this->d[node * nHexDOFs + i];
-                    switch (j) {
-                        case DOF_ux:
-                            duidxj += dNdksi(node, ksi, eta, zeta) * this->d[node * nHexDOFs + i];
-                            break;
-                        case DOF_uy:
-                            duidxj += dNdeta(node, ksi, eta, zeta) * this->d[node * nHexDOFs + i];
-                            break;
-                        case DOF_uz:
-                            duidxj += dNdzeta(node, ksi, eta, zeta) * this->d[node * nHexDOFs + i];
-                            break;
-                    }
+                    double dNdxj = (dNdksi(node, ksi, eta, zeta) * this->J_inv[j][0] +
+                                    dNdeta(node, ksi, eta, zeta) * this->J_inv[j][1] +
+                                    dNdzeta(node, ksi, eta, zeta) * this->J_inv[j][2]);
+                    duidxj += dNdxj * this->d[node * nHexDOFs + i];
+                    // switch (j) {
+                    //     case DOF_ux:
+                    //         duidxj += dNdksi(node, ksi, eta, zeta) * this->d[node * nHexDOFs + i];
+                    //         break;
+                    //     case DOF_uy:
+                    //         duidxj += dNdeta(node, ksi, eta, zeta) * this->d[node * nHexDOFs + i];
+                    //         break;
+                    //     case DOF_uz:
+                    //         duidxj += dNdzeta(node, ksi, eta, zeta) * this->d[node * nHexDOFs + i];
+                    //         break;
+                    // }
                 }
 
                 // F_ij = δ_ij + du_i/dx_j
-                this->F[i][j] = ((i == j) ? 1.0 : 0.0) + duidxj;
+                this->F[i][j] = delta(i, j) + duidxj;
             }
         }
 
@@ -358,20 +358,20 @@ class hex8 : public HexElem<linear> {
                     for (int j = i; j < nHexDOFs; j++) {
                         double C_inv_ij = this->C_inv[i][j];
                         for (int k = 0; k < nHexDOFs; k++) {
-                            double C_ik = this->C[i][k];
-                            double C_jk = this->C[j][k];
+                            double C_inv_ik = this->C_inv[i][k];
+                            double C_inv_jk = this->C_inv[j][k];
                             for (int l = k; l < nHexDOFs; l++) {
-                                double C_il = this->C[i][l];
-                                double C_jl = this->C[j][l];
+                                double C_inv_il = this->C_inv[i][l];
+                                double C_inv_jl = this->C_inv[j][l];
                                 double C_inv_kl = this->C_inv[k][l];
 
                                 double C1xC1_ijkl = C_inv_ij * C_inv_kl;
-                                double I_ijkl = 0.5 * ((C_ik * C_jl) + (C_il * C_jk));
+                                double I_ijkl = 0.5 * ((C_inv_ik * C_inv_jl) + (C_inv_il * C_inv_jk));
 
-                                int ind_i = fourthOrder2matrix(i, j);
-                                int ind_j = fourthOrder2matrix(k, l);
-                                this->D[ind_i][ind_j] = mat.lambda * C1xC1_ijkl +
-                                                        2.0 * (mat.mu - mat.lambda * log(this->detC)) * I_ijkl;
+                                int ind_row = fourthOrder2matrix(i, j);
+                                int ind_col = fourthOrder2matrix(k, l);
+                                this->D[ind_row][ind_col] = mat.lambda * C1xC1_ijkl +
+                                                            2.0 * (mat.mu - 0.5 * mat.lambda * log(this->detC)) * I_ijkl;
                             }
                         }
                     }
@@ -486,7 +486,7 @@ class hex8 : public HexElem<linear> {
         this->getRightCauchy(ksi, eta, zeta);
         for (int i = 0; i < nHexDOFs; i++) {
             for (int j = 0; j < nHexDOFs; j++) {
-                this->eps_GL[i][j] = 0.5 * (this->C[i][j] - ((i == j) ? 1. : 0.));
+                this->eps_GL[i][j] = 0.5 * (this->C[i][j] - delta(i, j));
             }
         }
 
@@ -522,27 +522,48 @@ class hex8 : public HexElem<linear> {
     /// @brief Calculates the 2nd Piola Stress
     /// Matrix τ(3x3) = |F| * F^{-1} * σ * F^{-T}
     void calculatePiola2(double ksi, double eta, double zeta, Material mat) {
-        this->calculateGreenLagrangeStrain(ksi, eta, zeta);
+        switch (mat.getType()) {
+            default:
+            case linear_elastic:
+                this->calculateGreenLagrangeStrain(ksi, eta, zeta);
+                for (int i = 0; i < directions; i++) {
+                    this->S2_v[i] = 0;
+                    for (int j = 0; j < directions; j++) {
+                        this->S2_v[i] += this->D[i][j] * this->eps_GL_v[j];
+                    }
+                }
 
-        for (int i = 0; i < directions; i++) {
-            this->S2_v[i] = 0;
-            for (int j = 0; j < directions; j++) {
-                this->S2_v[i] += this->D[i][j] * this->eps_GL_v[j];
-            }
+                this->S2[DOF_ux][DOF_ux] = this->S2_v[DOF_ux];
+                this->S2[DOF_uy][DOF_uy] = this->S2_v[DOF_uy];
+                this->S2[DOF_uz][DOF_uz] = this->S2_v[DOF_uz];
+
+                this->S2[DOF_ux][DOF_uy] = this->S2_v[nHexDOFs + DOF_ux];
+                this->S2[DOF_uy][DOF_ux] = this->S2_v[nHexDOFs + DOF_ux];
+
+                this->S2[DOF_uy][DOF_uz] = this->S2_v[nHexDOFs + DOF_uy];
+                this->S2[DOF_uz][DOF_uy] = this->S2_v[nHexDOFs + DOF_uy];
+
+                this->S2[DOF_uz][DOF_ux] = this->S2_v[nHexDOFs + DOF_uz];
+                this->S2[DOF_ux][DOF_uz] = this->S2_v[nHexDOFs + DOF_uz];
+                break;
+            case neo_hookean:
+                this->getRightCauchy(ksi, eta, zeta);
+                for (int i = 0; i < nHexDOFs; i++) {
+                    for (int j = 0; j < nHexDOFs; j++) {
+                        this->S2[i][j] = (mat.mu * (delta(i, j) - this->C_inv[i][j])) +
+                                         (mat.lambda * 0.5 * log(this->detC) * this->C_inv[i][j]);
+                    }
+                }
+
+                this->S2_v[DOF_ux] = this->S2[DOF_ux][DOF_ux];
+                this->S2_v[DOF_uy] = this->S2[DOF_uy][DOF_uy];
+                this->S2_v[DOF_uz] = this->S2[DOF_uz][DOF_uz];
+
+                this->S2_v[nHexDOFs + DOF_ux] = this->S2[DOF_ux][DOF_uy];
+                this->S2_v[nHexDOFs + DOF_uy] = this->S2[DOF_uy][DOF_uz];
+                this->S2_v[nHexDOFs + DOF_uz] = this->S2[DOF_uz][DOF_ux];
+                break;
         }
-
-        this->S2[DOF_ux][DOF_ux] = this->S2_v[DOF_ux];
-        this->S2[DOF_uy][DOF_uy] = this->S2_v[DOF_uy];
-        this->S2[DOF_uz][DOF_uz] = this->S2_v[DOF_uz];
-
-        this->S2[DOF_ux][DOF_uy] = this->S2_v[nHexDOFs + DOF_ux];
-        this->S2[DOF_uy][DOF_ux] = this->S2_v[nHexDOFs + DOF_ux];
-
-        this->S2[DOF_uy][DOF_uz] = this->S2_v[nHexDOFs + DOF_uy];
-        this->S2[DOF_uz][DOF_uy] = this->S2_v[nHexDOFs + DOF_uy];
-
-        this->S2[DOF_uz][DOF_ux] = this->S2_v[nHexDOFs + DOF_uz];
-        this->S2[DOF_ux][DOF_uz] = this->S2_v[nHexDOFs + DOF_uz];
     }
 
     /// @brief Debug Method, Prints Cauchy Stress and Engineering Strain Matrices
