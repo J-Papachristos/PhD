@@ -100,13 +100,15 @@ int main(int argc, char const *argv[]) {
 
     // Read from a file at some point (!), Aluminum
     double rho = 2.77e3; // [kg/m^3]
-    double E = 71e9;     // [Pa]
-    double nu = 0.33;
+    // double E = 71e9;     // [Pa]
+    // double nu = 0.33;
+    double lambda = 12.3322;
+    double mu = 0.2516;
 
     Material mat;
     mat.setPhysical(rho);
-    mat.setElasticity(linear_elastic, E, nu);
-    // mat.calcElasticityMatrix();
+    // mat.setElasticity(linear_elastic, E, nu);
+    mat.setElasticity(neo_hookean, lambda, mu);
 
     int nBodies = 1;
     Body<hex8> *bodyArray = (Body<hex8> *) malloc(nBodies * sizeof(Body<hex8>));
@@ -277,7 +279,7 @@ int main(int argc, char const *argv[]) {
         int iter = 0;
         printf("t = %.3lf :\n", t);
 
-        while (fabs(res) >= 1e-8 && iter <= 100) {
+        while (fabs(res) >= 1e-6 && iter <= 100) {
             // k_ff : [K] Matrix of Free DOFs
             // Dimensions : (# Free DOFs) x (# Free DOFs)
             cholmod_sparse *k_ff;
@@ -325,7 +327,8 @@ int main(int argc, char const *argv[]) {
                     }
                     Fint[i] = 0;
                 }
-                elemArray[elem].calcD(mat);
+                if (mat.getType() == linear_elastic)
+                    elemArray[elem].getElasticityMatrix(mat);
 
                 // Calculate Local Stiffness Matrix
                 localStiff(&elemArray[elem], k_local, mat);
@@ -438,7 +441,7 @@ int main(int argc, char const *argv[]) {
             cholmod_factorize(k_ff, L, &c);
             if (c.status != 0) {
                 printf("\tStatus = %d\n", c.status);
-                printf("\tMinor  = %ld\n", (long) L->minor);
+                printf("\tMinor  = %ld/%ld\n", (long) L->minor, (long) L->n);
                 return -1;
             }
             du_free = cholmod_solve(CHOLMOD_A, L, b_free, &c);
@@ -576,6 +579,8 @@ void localStiff(hexType *elem, double **k_local, Material mat) {
             for (int iZeta = 0; iZeta < GQ_POINTS; iZeta++) {
                 double weight = w_GQ[iKsi] * w_GQ[iEta] * w_GQ[iZeta];
                 elem->getLinearDeformMatrix(points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
+                if (mat.getType() != linear_elastic)
+                    elem->getElasticityMatrix(mat, points_GQ[iKsi], points_GQ[iEta], points_GQ[iZeta]);
 
                 for (int i = 0; i < nHexDOFs * elemNodes; i++) {
                     double BT_D[directions];

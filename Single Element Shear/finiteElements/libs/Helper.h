@@ -146,6 +146,13 @@ void inverse3(double A[3][3], double A_inv[3][3], double *detA) {
         A_inv[0][2] = _G_ / (*detA);
         A_inv[1][2] = _H_ / (*detA);
         A_inv[2][2] = _I_ / (*detA);
+    } else {
+        printf("det < 0\n");
+        exit(1);
+    }
+    if (isnan(*detA)) {
+        printf("det is NaN!\n");
+        exit(1);
     }
 }
 
@@ -166,6 +173,7 @@ int fourthOrder2matrix(int i, int j) {
         return nHexDOFs + DOF_uy;
     else if (i + j == zz + xx)
         return nHexDOFs + DOF_uz;
+    return -1;
 }
 
 #endif // !_HELPER_LIB_
