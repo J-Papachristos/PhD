@@ -149,65 +149,50 @@ class hex8 : public HexElem<linear> {
         return 0.125 * (1 + ksi * ksi_ind[i]) * (1 + eta * eta_ind[i]) * (1 + zeta * zeta_ind[i]);
     }
 
-    /// @brief Shape Function Derivatives for hex8 Element with respect to ξ at {ξ,η,ζ}
+    /// @brief Shape Function Derivatives for hex8 Element with respect to dof at {ξ,η,ζ}
+    /// @param dof Derivative DoF
     /// @param i Selection of Shape Function
     /// @param ksi  ξ Coordinate [-1,1]
     /// @param eta  η Coordinate [-1,1]
     /// @param zeta ζ Coordinate [-1,1]
-    /// @return dN_i/dξ
-    double dNdksi(int i, double ksi, double eta, double zeta) {
-        return 0.125 * ksi_ind[i] * (1 + eta * eta_ind[i]) * (1 + zeta * zeta_ind[i]);
+    /// @return dN_i/dξ_dof
+    double dN(int dof, int i, double ksi, double eta, double zeta) {
+        switch (dof) {
+            case DOF_ux:
+                return 0.125 * ksi_ind[i] * (1 + eta * eta_ind[i]) * (1 + zeta * zeta_ind[i]);
+            case DOF_uy:
+                return 0.125 * eta_ind[i] * (1 + ksi * ksi_ind[i]) * (1 + zeta * zeta_ind[i]);
+            case DOF_uz:
+                return 0.125 * zeta_ind[i] * (1 + ksi * ksi_ind[i]) * (1 + eta * eta_ind[i]);
+            default:
+                return 0;
+        }
     }
 
-    /// @brief Shape Function Derivatives for hex8 Element with respect to η at {ξ,η,ζ}
-    /// @param i Selection of Shape Function
-    /// @param ksi  ξ Coordinate [-1,1]
-    /// @param eta  η Coordinate [-1,1]
-    /// @param zeta ζ Coordinate [-1,1]
-    /// @return dN_i/dη
-    double dNdeta(int i, double ksi, double eta, double zeta) {
-        return 0.125 * eta_ind[i] * (1 + ksi * ksi_ind[i]) * (1 + zeta * zeta_ind[i]);
-    }
-
-    /// @brief Shape Function Derivatives for hex8 Element with respect to ζ at {ξ,η,ζ}
-    /// @param i Selection of Shape Function
-    /// @param ksi  ξ Coordinate [-1,1]
-    /// @param eta  η Coordinate [-1,1]
-    /// @param zeta ζ Coordinate [-1,1]
-    /// @return dN_i/dζ
-    double dNdzeta(int i, double ksi, double eta, double zeta) {
-        return 0.125 * zeta_ind[i] * (1 + ksi * ksi_ind[i]) * (1 + eta * eta_ind[i]);
-    }
-
-    /// @brief Calculates the Jacobian [J] and
-    /// the Inverse Jacobian [J]^{-1} for the
-    /// hex8 Element
+    /// @brief Calculates the Jacobian [J] and the
+    /// Inverse Jacobian [J]^{-1} for the hex8 Element
     /// @param ksi  ξ Isoparametric Variable
     /// @param eta  η Isoparametric Variable
     /// @param zeta ζ Isoparametric Variable
     void jacobian(double ksi, double eta, double zeta) {
-        // Init
-        double J_11 = 0, J_12 = 0, J_13 = 0;
-        double J_21 = 0, J_22 = 0, J_23 = 0;
-        double J_31 = 0, J_32 = 0, J_33 = 0;
-
-        // Calculate Jacobian
-        for (int i = hex8_1; i < linear; i++) {
-            J_11 += dNdksi(i, ksi, eta, zeta) * x[i];
-            J_21 += dNdeta(i, ksi, eta, zeta) * x[i];
-            J_31 += dNdzeta(i, ksi, eta, zeta) * x[i];
-
-            J_12 += dNdksi(i, ksi, eta, zeta) * y[i];
-            J_22 += dNdeta(i, ksi, eta, zeta) * y[i];
-            J_32 += dNdzeta(i, ksi, eta, zeta) * y[i];
-
-            J_13 += dNdksi(i, ksi, eta, zeta) * z[i];
-            J_23 += dNdeta(i, ksi, eta, zeta) * z[i];
-            J_33 += dNdzeta(i, ksi, eta, zeta) * z[i];
+        for (int i = 0; i < nHexDOFs; i++) {
+            for (int j = 0; j < nHexDOFs; j++) {
+                this->J[i][j] = 0;
+                for (int node = 0; node < linear; node++) {
+                    switch (j) {
+                        case DOF_ux:
+                            this->J[i][j] += dN(i, node, ksi, eta, zeta) * x[node];
+                            break;
+                        case DOF_uy:
+                            this->J[i][j] += dN(i, node, ksi, eta, zeta) * y[node];
+                            break;
+                        case DOF_uz:
+                            this->J[i][j] += dN(i, node, ksi, eta, zeta) * z[node];
+                            break;
+                    }
+                }
+            }
         }
-        this->J[0][0] = J_11, this->J[0][1] = J_12, this->J[0][2] = J_13;
-        this->J[1][0] = J_21, this->J[1][1] = J_22, this->J[1][2] = J_23;
-        this->J[2][0] = J_31, this->J[2][1] = J_32, this->J[2][2] = J_33;
 
         // Calculate Inverse Jacobian
         inverse3(this->J, this->J_inv, &this->detJ);
@@ -274,21 +259,12 @@ class hex8 : public HexElem<linear> {
             for (int j = 0; j < nHexDOFs; j++) {
                 double duidxj = 0;
                 for (int node = 0; node < elemNodes; node++) {
-                    double dNdxj = (dNdksi(node, ksi, eta, zeta) * this->J_inv[j][0] +
-                                    dNdeta(node, ksi, eta, zeta) * this->J_inv[j][1] +
-                                    dNdzeta(node, ksi, eta, zeta) * this->J_inv[j][2]);
-                    duidxj += dNdxj * this->d[node * nHexDOFs + i];
-                    // switch (j) {
-                    //     case DOF_ux:
-                    //         duidxj += dNdksi(node, ksi, eta, zeta) * this->d[node * nHexDOFs + i];
-                    //         break;
-                    //     case DOF_uy:
-                    //         duidxj += dNdeta(node, ksi, eta, zeta) * this->d[node * nHexDOFs + i];
-                    //         break;
-                    //     case DOF_uz:
-                    //         duidxj += dNdzeta(node, ksi, eta, zeta) * this->d[node * nHexDOFs + i];
-                    //         break;
-                    // }
+                    // double dNdxj = (dNdksi(node, ksi, eta, zeta) * this->J_inv[j][0] +
+                    //                 dNdeta(node, ksi, eta, zeta) * this->J_inv[j][1] +
+                    //                 dNdzeta(node, ksi, eta, zeta) * this->J_inv[j][2]);
+                    // duidxj += dNdxj * this->d[node * nHexDOFs + i];
+
+                    duidxj += dN(j, node, ksi, eta, zeta) * this->d[node * nHexDOFs + i];
                 }
 
                 // F_ij = δ_ij + du_i/dx_j
@@ -392,22 +368,17 @@ class hex8 : public HexElem<linear> {
                 this->B_L[i][j] = 0;
             }
         }
-        double dNdx = 0;
-        double dNdy = 0;
-        double dNdz = 0;
 
         for (int node = 0; node < this->elemNodes; node++) {
-            dNdx = this->dNdksi(node, ksi, eta, zeta) * this->J_inv[0][0];
-            dNdx += this->dNdeta(node, ksi, eta, zeta) * this->J_inv[0][1];
-            dNdx += this->dNdzeta(node, ksi, eta, zeta) * this->J_inv[0][2];
+            double dNdx = 0;
+            double dNdy = 0;
+            double dNdz = 0;
 
-            dNdy = this->dNdksi(node, ksi, eta, zeta) * this->J_inv[1][0];
-            dNdy += this->dNdeta(node, ksi, eta, zeta) * this->J_inv[1][1];
-            dNdy += this->dNdzeta(node, ksi, eta, zeta) * this->J_inv[1][2];
-
-            dNdz = this->dNdksi(node, ksi, eta, zeta) * this->J_inv[2][0];
-            dNdz += this->dNdeta(node, ksi, eta, zeta) * this->J_inv[2][1];
-            dNdz += this->dNdzeta(node, ksi, eta, zeta) * this->J_inv[2][2];
+            for (int i = 0; i < nHexDOFs; i++) {
+                dNdx += this->dN(i, node, ksi, eta, zeta) * this->J_inv[DOF_ux][i];
+                dNdy += this->dN(i, node, ksi, eta, zeta) * this->J_inv[DOF_uy][i];
+                dNdz += this->dN(i, node, ksi, eta, zeta) * this->J_inv[DOF_uz][i];
+            }
 
             this->B_L[DOF_ux][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_ux] * dNdx;
             this->B_L[DOF_uy][node * nHexDOFs + DOF_ux] = this->F[DOF_ux][DOF_uy] * dNdy;
@@ -448,22 +419,16 @@ class hex8 : public HexElem<linear> {
             }
         }
 
-        double dNdx = 0;
-        double dNdy = 0;
-        double dNdz = 0;
-
         for (int node = 0; node < this->elemNodes; node++) {
-            dNdx = this->dNdksi(node, ksi, eta, zeta) * this->J_inv[0][0];
-            dNdx += this->dNdeta(node, ksi, eta, zeta) * this->J_inv[0][1];
-            dNdx += this->dNdzeta(node, ksi, eta, zeta) * this->J_inv[0][2];
+            double dNdx = 0;
+            double dNdy = 0;
+            double dNdz = 0;
 
-            dNdy = this->dNdksi(node, ksi, eta, zeta) * this->J_inv[1][0];
-            dNdy += this->dNdeta(node, ksi, eta, zeta) * this->J_inv[1][1];
-            dNdy += this->dNdzeta(node, ksi, eta, zeta) * this->J_inv[1][2];
-
-            dNdz = this->dNdksi(node, ksi, eta, zeta) * this->J_inv[2][0];
-            dNdz += this->dNdeta(node, ksi, eta, zeta) * this->J_inv[2][1];
-            dNdz += this->dNdzeta(node, ksi, eta, zeta) * this->J_inv[2][2];
+            for (int i = 0; i < nHexDOFs; i++) {
+                dNdx += this->dN(i, node, ksi, eta, zeta) * this->J_inv[DOF_ux][i];
+                dNdy += this->dN(i, node, ksi, eta, zeta) * this->J_inv[DOF_uy][i];
+                dNdz += this->dN(i, node, ksi, eta, zeta) * this->J_inv[DOF_uz][i];
+            }
 
             for (int i = 0; i < nHexDOFs; i++) {
                 this->B_NL[i * nHexDOFs + DOF_ux][node * nHexDOFs + i] = dNdx;
