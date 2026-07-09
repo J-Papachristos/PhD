@@ -59,7 +59,7 @@ class HexElem {
     double D[directions][directions];
 
     // Nodal Displacement Vector [u1_x, u1_y, u1_z, ..., un_x, un_y, un_z]
-    double d[nHexDOFs * elemNodes];
+    double u[nHexDOFs * elemNodes];
 
     // Strains
     double epsilon[nHexDOFs][nHexDOFs]; // Nodal Strain Matrix
@@ -105,7 +105,7 @@ class HexElem {
         }
 
         for (int i = 0; i < nHexDOFs * elemNodes; i++) {
-            this->d[i] = 0.0;
+            this->u[i] = 0.0;
         }
     }
 
@@ -196,6 +196,14 @@ class hex8 : public HexElem<linear> {
 
         // Calculate Inverse Jacobian
         inverse3(this->J, this->J_inv, &this->detJ);
+        if (this->detJ <= 1e-10) {
+            printf("det{J} < 0\n");
+            this->printJacobian();
+            exit(1);
+        } else if (isnan(this->detJ)) {
+            printf("det{J} is NaN!\n");
+            exit(1);
+        }
     }
 
     double getVolume() {
@@ -259,12 +267,12 @@ class hex8 : public HexElem<linear> {
             for (int j = 0; j < nHexDOFs; j++) {
                 double duidxj = 0;
                 for (int node = 0; node < elemNodes; node++) {
-                    // double dNdxj = (dNdksi(node, ksi, eta, zeta) * this->J_inv[j][0] +
-                    //                 dNdeta(node, ksi, eta, zeta) * this->J_inv[j][1] +
-                    //                 dNdzeta(node, ksi, eta, zeta) * this->J_inv[j][2]);
-                    // duidxj += dNdxj * this->d[node * nHexDOFs + i];
-
-                    duidxj += dN(j, node, ksi, eta, zeta) * this->d[node * nHexDOFs + i];
+                    // double dNdxj = 0;
+                    // for (int dof = 0; dof < nHexDOFs; dof++) {
+                    //     dNdxj += dN(dof, node, ksi, eta, zeta) * this->J_inv[j][dof];
+                    // }
+                    // duidxj += dNdxj * this->u[node * nHexDOFs + i];
+                    duidxj += dN(j, node, ksi, eta, zeta) * this->u[node * nHexDOFs + i];
                 }
 
                 // F_ij = δ_ij + du_i/dx_j
@@ -274,12 +282,12 @@ class hex8 : public HexElem<linear> {
 
         // Calculate Inverse Deformation Gradient
         inverse3(this->F, this->F_inv, &this->detF);
-
-        if (detF <= 1e-10) {
+        if (this->detF <= 1e-10) {
             printf("det{F} < 0\n");
+            this->printDisplacements();
             this->printDeformGradient();
             exit(1);
-        } else if (isnan(detF)) {
+        } else if (isnan(this->detF)) {
             printf("det{F} is NaN!\n");
             exit(1);
         }
@@ -302,6 +310,13 @@ class hex8 : public HexElem<linear> {
 
         // Calculate Inverse Cauchy
         inverse3(this->C, this->C_inv, &this->detC);
+        if (this->detC <= 1e-10) {
+            printf("det{C} < 0\n");
+            exit(1);
+        } else if (isnan(this->detC)) {
+            printf("det{C} is NaN!\n");
+            exit(1);
+        }
     }
 
     /// @brief Calculates the Linear Elasticity Matrix
@@ -442,7 +457,7 @@ class hex8 : public HexElem<linear> {
         for (int dir = 0; dir < directions; dir++) {
             this->epsilon_v[dir] = 0;
             for (int cols = 0; cols < nHexDOFs * this->elemNodes; cols++) {
-                this->epsilon_v[dir] += (dir > nHexDOFs ? 2.0 : 1.0) * this->B_L[dir][cols] * this->d[cols];
+                this->epsilon_v[dir] += (dir > nHexDOFs ? 2.0 : 1.0) * this->B_L[dir][cols] * this->u[cols];
             }
         }
     }
@@ -557,10 +572,10 @@ class hex8 : public HexElem<linear> {
     void printDisplacements() {
         printf("Element %d:\n", this->getNelem());
         for (int j = 0; j < elemNodes; j++) {
-            printf("\tNode[%d] = {%lf, %lf, %lf} [mm]\n", j,
-                   this->d[j * nHexDOFs + DOF_ux],
-                   this->d[j * nHexDOFs + DOF_uy],
-                   this->d[j * nHexDOFs + DOF_uz]);
+            printf("\tNode[%d] = {%+.6lf, %+.6lf, %+.6lf}\n", j,
+                   this->u[j * nHexDOFs + DOF_ux],
+                   this->u[j * nHexDOFs + DOF_uy],
+                   this->u[j * nHexDOFs + DOF_uz]);
         }
     }
 };

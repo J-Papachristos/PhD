@@ -100,15 +100,15 @@ int main(int argc, char const *argv[]) {
 
     // Read from a file at some point (!), Aluminum
     double rho = 2.77e3; // [kg/m^3]
-    // double E = 71e9;     // [Pa]
-    // double nu = 0.33;
-    double lambda = 12.3322;
-    double mu = 0.2516;
+    double E = 71e9;     // [Pa]
+    double nu = 0.33;
+    // double lambda = 12.3322;
+    // double mu = 0.2516;
 
     Material mat;
     mat.setPhysical(rho);
-    // mat.setElasticity(linear_elastic, E, nu);
-    mat.setElasticity(neo_hookean, lambda, mu);
+    mat.setElasticity(linear_elastic, E, nu);
+    // mat.setElasticity(neo_hookean, lambda, mu);
 
     int nBodies = 1;
     Body<hex8> *bodyArray = (Body<hex8> *) malloc(nBodies * sizeof(Body<hex8>));
@@ -279,7 +279,7 @@ int main(int argc, char const *argv[]) {
         int iter = 0;
         printf("t = %.3lf :\n", t);
 
-        while (fabs(res) >= 1e-6 && iter <= 100) {
+        while (fabs(res) >= 1e-6 && iter <= 10) {
             // k_ff : [K] Matrix of Free DOFs
             // Dimensions : (# Free DOFs) x (# Free DOFs)
             cholmod_sparse *k_ff;
@@ -311,9 +311,10 @@ int main(int argc, char const *argv[]) {
             // Reset Dense Vectors
             for (int i = 0; i < freeDOFs; i++) {
                 ((double *) du_free->x)[i] = 0;
-                ((double *) du_fixed->x)[i] = 0;
-
                 ((double *) b_free->x)[i] = 0;
+            }
+            for (int i = 0; i < fixedDOFs; i++) {
+                ((double *) du_fixed->x)[i] = 0;
                 ((double *) b_fixed->x)[i] = 0;
             }
 
@@ -465,13 +466,13 @@ int main(int argc, char const *argv[]) {
                     int row = globalDOFs[elemArray[elem].nodeIndex[i]];
                     /// Assign Displacements to Element
                     if (row < freeDOFs) {
-                        elemArray[elem].d[i * nHexDOFs + DOF_ux] += ((double *) du_free->x)[row + DOF_ux];
-                        elemArray[elem].d[i * nHexDOFs + DOF_uy] += ((double *) du_free->x)[row + DOF_uy];
-                        elemArray[elem].d[i * nHexDOFs + DOF_uz] += ((double *) du_free->x)[row + DOF_uz];
+                        elemArray[elem].u[i * nHexDOFs + DOF_ux] += ((double *) du_free->x)[row + DOF_ux];
+                        elemArray[elem].u[i * nHexDOFs + DOF_uy] += ((double *) du_free->x)[row + DOF_uy];
+                        elemArray[elem].u[i * nHexDOFs + DOF_uz] += ((double *) du_free->x)[row + DOF_uz];
                     } else {
-                        elemArray[elem].d[i * nHexDOFs + DOF_ux] = ((double *) du_fixed->x)[row - freeDOFs + DOF_ux];
-                        elemArray[elem].d[i * nHexDOFs + DOF_uy] = ((double *) du_fixed->x)[row - freeDOFs + DOF_uy];
-                        elemArray[elem].d[i * nHexDOFs + DOF_uz] = ((double *) du_fixed->x)[row - freeDOFs + DOF_uz];
+                        elemArray[elem].u[i * nHexDOFs + DOF_ux] = ((double *) du_fixed->x)[row - freeDOFs + DOF_ux];
+                        elemArray[elem].u[i * nHexDOFs + DOF_uy] = ((double *) du_fixed->x)[row - freeDOFs + DOF_uy];
+                        elemArray[elem].u[i * nHexDOFs + DOF_uz] = ((double *) du_fixed->x)[row - freeDOFs + DOF_uz];
                     }
                 }
             }
